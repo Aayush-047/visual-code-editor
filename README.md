@@ -1,4 +1,16 @@
-# Getting Started with Create React App
+# Visual Code Editor
+
+This project is a clone of MIT Scratch, bootstrapped with [Create React App](https://github.com/facebook/create-react-app). It provides a visual code editor where users can drag and drop blocks to create simple scripts and control a sprite’s behavior.
+
+## Features
+
+- **Drag and Drop Interface:** Easily drag blocks from the sidebar to the workspace to build scripts.
+- **Motion and Looks Blocks:** Use motion blocks to move the sprite and looks blocks to change its appearance and show messages.
+- **Run and Replay Actions:** Execute your scripts and replay specific actions from the history.
+- **Customizable Sprite:** Change the sprite's color and size, and manipulate its position and rotation.
+- **Backdrop Support:** Change the backdrop in the preview area to enhance the visual experience.
+
+## Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
