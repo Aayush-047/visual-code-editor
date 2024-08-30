@@ -1,6 +1,6 @@
 import React from 'react';
 import { useDrag } from 'react-dnd';
-import { MOTION, LOOKS } from '../constants/BlockTypes';
+import { MOTION } from '../constants/BlockTypes';
 import {
   MOVE_X, MOVE_Y, TURN_RIGHT, TURN_LEFT, GOTO, GOTO_RANDOM,
   POINT_IN_DIRECTION, POINT_TOWARDS_RANDOM, SAY, THINK,
