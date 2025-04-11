@@ -11,7 +11,7 @@ function App() {
         <VisualCodeEditor />
       </main>
       <footer className="bg-gray-200 p-4 mt-8 text-center text-gray-600">
-        <p>Powered by Juspay</p>
+        <p>Powered by Aayush Khunger</p>
       </footer>
     </div>
   );
