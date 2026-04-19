@@ -16,3 +16,7 @@ export const CHANGE_COLOR = 'change color';
 export const CHANGE_BACKDROP = 'change backdrop';
 export const HIDE = 'hide';
 export const SHOW = 'show';
+export const PLAY_SOUND = 'play sound';
+export const SET_VOLUME = 'set volume to';
+export const CHANGE_VOLUME_BY = 'change volume by';
+export const CLEAR_ALL_SOUNDS = 'clear all sounds';

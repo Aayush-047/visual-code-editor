@@ -3,11 +3,30 @@ import {
   MOVE_X, MOVE_Y, TURN_RIGHT, TURN_LEFT, GOTO, GOTO_RANDOM,
   POINT_IN_DIRECTION, POINT_TOWARDS_RANDOM, SAY, THINK,
   SAY_TIMER, THINK_TIMER, CHANGE_SIZE_TO, CHANGE_SIZE_BY,
-  CHANGE_COLOR, CHANGE_BACKDROP, HIDE, SHOW, 
+  CHANGE_COLOR, CHANGE_BACKDROP, HIDE, SHOW, PLAY_SOUND, SET_VOLUME, CHANGE_VOLUME_BY, CLEAR_ALL_SOUNDS,
 } from '../constants/ActionTypes';
 
+const clampVolume = (value) => {
+  const volume = parseInt(value, 10);
+  if (Number.isNaN(volume)) return 100;
+  return Math.min(100, Math.max(0, volume));
+};
+
+const parseVolumeDelta = (value) => {
+  const delta = parseInt(value, 10);
+  return Number.isNaN(delta) ? 0 : delta;
+};
+
+const stopAllSounds = (activeAudiosRef) => {
+  activeAudiosRef.current.forEach((audio) => {
+    audio.pause();
+    audio.currentTime = 0;
+  });
+  activeAudiosRef.current = [];
+};
+
 const useExecuteAction = (spriteRef) => {
-  return useCallback(async (block, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropIndex) => { 
+  return useCallback(async (block, sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume) => { 
     const sprite = spriteRef.current;
     if (!sprite) return;
 
@@ -74,7 +93,32 @@ const useExecuteAction = (spriteRef) => {
             setSpriteColor(block.value);
             break;
           case CHANGE_BACKDROP:
-            setBackdropIndex(parseInt(block.value, 10));
+            setBackdropValue(String(block.value));
+            break;
+          case PLAY_SOUND: {
+            const sound = sounds.find(({ id }) => id === block.value);
+            if (sound?.url) {
+              const audio = new Audio(sound.url);
+              audio.volume = clampVolume(soundVolume) / 100;
+              activeAudiosRef.current.push(audio);
+
+              const removeAudio = () => {
+                activeAudiosRef.current = activeAudiosRef.current.filter((activeAudio) => activeAudio !== audio);
+              };
+
+              audio.addEventListener('ended', removeAudio, { once: true });
+              void audio.play().catch(removeAudio);
+            }
+            break;
+          }
+          case SET_VOLUME:
+            setSoundVolume(clampVolume(block.value));
+            break;
+          case CHANGE_VOLUME_BY:
+            setSoundVolume((prevVolume) => clampVolume(prevVolume + parseVolumeDelta(block.value)));
+            break;
+          case CLEAR_ALL_SOUNDS:
+            stopAllSounds(activeAudiosRef);
             break;
           default:
             break;

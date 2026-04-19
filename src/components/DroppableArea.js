@@ -9,6 +9,7 @@ const DroppableArea = ({ onDrop, children }) => {
       if (!didDrop) {
         onDrop(item);
       }
+      return { dropped: true };
     },
     collect: (monitor) => ({
       isOver: !!monitor.isOver(),
