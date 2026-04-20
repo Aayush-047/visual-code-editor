@@ -6,7 +6,7 @@ import CatSprite from './CatSprite';
 import Block from './Block';
 import DroppableArea from './DroppableArea';
 import SpeechBubble from './SpeechBubble';
-import { MOTION, LOOKS, SOUND, SPRITE } from '../constants/BlockTypes';
+import { EVENTS, MOTION, LOOKS, SOUND, SPRITE, OPERATORS } from '../constants/BlockTypes';
 import { BACKDROPS } from '../data/BackDrops';
 import useExecuteAction from '../hooks/useExecuteAction';
 import * as actionTypes from '../constants/ActionTypes';
@@ -40,6 +40,7 @@ const VisualCodeEditor = () => {
   const [backdropValue, setBackdropValue] = useState('0');
   const [currentActionIndex, setCurrentActionIndex] = useState(0);
   const [speechBubble, setSpeechBubble] = useState({ message: '', isThinking: false });
+  const [broadcastMessage, setBroadcastMessage] = useState({ message: '', color: '#111111' });
   const [sounds, setSounds] = useState(DEFAULT_SOUNDS);
   const [soundVolume, setSoundVolume] = useState(100);
   const [uploadedBackdrops, setUploadedBackdrops] = useState([]);
@@ -70,6 +71,11 @@ const VisualCodeEditor = () => {
     { id: 'sidebar-set-volume', type: SOUND, action: actionTypes.SET_VOLUME, value: 100 },
     { id: 'sidebar-change-volume-by', type: SOUND, action: actionTypes.CHANGE_VOLUME_BY, value: 10 },
     { id: 'sidebar-clear-all-sounds', type: SOUND, action: actionTypes.CLEAR_ALL_SOUNDS, value: null },
+    { id: 'sidebar-when-key-pressed', type: EVENTS, action: actionTypes.WHEN_KEY_PRESSED, value: 'Space' },
+    { id: 'sidebar-when-sprite-clicked', type: EVENTS, action: actionTypes.WHEN_SPRITE_CLICKED, value: null },
+    { id: 'sidebar-when-backdrop-switches-to', type: EVENTS, action: actionTypes.WHEN_BACKDROP_SWITCHES_TO, value: 0 },
+    { id: 'sidebar-when-loudness-greater-than', type: EVENTS, action: actionTypes.WHEN_LOUDNESS_GREATER_THAN, value: 10 },
+    { id: 'sidebar-broadcast-message-for', type: EVENTS, action: actionTypes.BROADCAST_MESSAGE_FOR, value: { message: 'Hello!', duration: 2, color: '#111111' } },
   ]);
 
   const executeAction = useExecuteAction(spriteRef);
@@ -180,7 +186,7 @@ const VisualCodeEditor = () => {
 
     const runActions = async () => {
       if (isRunning && currentActionIndex < blocks.length) {
-        await executeAction(blocks[currentActionIndex], sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume);
+        await executeAction(blocks[currentActionIndex], sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume, setBroadcastMessage);
         if (!isCancelled) {
           setCurrentActionIndex((prevIndex) => prevIndex + 1);
         }
@@ -188,6 +194,7 @@ const VisualCodeEditor = () => {
         setIsRunning(false);
         setCurrentActionIndex(0);
         setSpeechBubble({ message: '', isThinking: false });
+        setBroadcastMessage({ message: '', color: '#111111' });
       }
     };
 
@@ -202,12 +209,13 @@ const VisualCodeEditor = () => {
     if (isRunning) return;
     setCurrentActionIndex(0);
     setSpeechBubble({ message: '', isThinking: false });
+    setBroadcastMessage({ message: '', color: '#111111' });
     setIsRunning(true);
   }, [isRunning]);
 
   const replayNthAction = useCallback((n) => {
     if (n > 0 && n <= history.length) {
-      executeAction(history[n - 1], sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume);
+      executeAction(history[n - 1], sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume, setBroadcastMessage);
     }
   }, [history, executeAction, sounds, soundVolume]);
 
@@ -447,6 +455,40 @@ const VisualCodeEditor = () => {
                   onBackdropMenuAction={handleBackdropMenuAction}
                 />
               ))}
+              <h2 className="text-lg font-bold mb-2 mt-4">Events</h2>
+              {sidebarBlocks.filter(block => block.type === EVENTS).map((block) => (
+                <Block
+                  key={block.id}
+                  id={block.id}
+                  type={block.type}
+                  action={block.action}
+                  value={block.value}
+                  onChange={handleSidebarBlockChange}
+                  isDraggable={true}
+                  availableSounds={sounds}
+                  availableBackdrops={availableBackdrops}
+                  isRecordingSound={isRecordingSound}
+                  onSoundMenuAction={handleSoundMenuAction}
+                  onBackdropMenuAction={handleBackdropMenuAction}
+                />
+              ))}
+              <h2 className="text-lg font-bold mb-2 mt-4">Operators</h2>
+              {sidebarBlocks.filter(block => block.type === OPERATORS).map((block) => (
+                <Block
+                  key={block.id}
+                  id={block.id}
+                  type={block.type}
+                  action={block.action}
+                  value={block.value}
+                  onChange={handleSidebarBlockChange}
+                  isDraggable={true}
+                  availableSounds={sounds}
+                  availableBackdrops={availableBackdrops}
+                  isRecordingSound={isRecordingSound}
+                  onSoundMenuAction={handleSoundMenuAction}
+                  onBackdropMenuAction={handleBackdropMenuAction}
+                />
+              ))}
             </>
           )}
 
@@ -546,6 +588,14 @@ const VisualCodeEditor = () => {
             backgroundSize: 'cover',
             backgroundPosition: 'center',
           }}>
+            {broadcastMessage.message && (
+              <div
+                className="absolute left-1/2 top-8 -translate-x-1/2 z-20 w-72 max-w-[80%] text-2xl font-bold text-center px-4 py-2 bg-white/80 rounded shadow whitespace-normal break-words"
+                style={{ color: broadcastMessage.color }}
+              >
+                {broadcastMessage.message}
+              </div>
+            )}
             <div
               ref={spriteRef}
               className="w-24 h-24 absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 cursor-grab active:cursor-grabbing select-none"

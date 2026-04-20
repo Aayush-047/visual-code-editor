@@ -4,6 +4,7 @@ import {
   POINT_IN_DIRECTION, POINT_TOWARDS_RANDOM, SAY, THINK,
   SAY_TIMER, THINK_TIMER, CHANGE_SIZE_TO, CHANGE_SIZE_BY,
   CHANGE_COLOR, CHANGE_BACKDROP, HIDE, SHOW, PLAY_SOUND, SET_VOLUME, CHANGE_VOLUME_BY, CLEAR_ALL_SOUNDS,
+  BROADCAST_MESSAGE_FOR,
 } from '../constants/ActionTypes';
 
 const clampVolume = (value) => {
@@ -25,8 +26,13 @@ const stopAllSounds = (activeAudiosRef) => {
   activeAudiosRef.current = [];
 };
 
+const parseDuration = (value) => {
+  const duration = parseFloat(value);
+  return Number.isNaN(duration) ? 2 : Math.max(0, duration);
+};
+
 const useExecuteAction = (spriteRef) => {
-  return useCallback(async (block, sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume) => { 
+  return useCallback(async (block, sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume, setBroadcastMessage) => { 
     const sprite = spriteRef.current;
     if (!sprite) return;
 
@@ -120,6 +126,16 @@ const useExecuteAction = (spriteRef) => {
           case CLEAR_ALL_SOUNDS:
             stopAllSounds(activeAudiosRef);
             break;
+          case BROADCAST_MESSAGE_FOR:
+            setBroadcastMessage?.({
+              message: block.value?.message || 'Hello!',
+              color: block.value?.color || '#111111',
+            });
+            setTimeout(() => {
+              setBroadcastMessage?.({ message: '', color: '#111111' });
+              resolve();
+            }, parseDuration(block.value?.duration) * 1000);
+            return prevState;
           default:
             break;
         }
