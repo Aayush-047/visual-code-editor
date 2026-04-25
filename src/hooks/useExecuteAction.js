@@ -31,10 +31,58 @@ const parseDuration = (value) => {
   return Number.isNaN(duration) ? 2 : Math.max(0, duration);
 };
 
+const playSoundToCompletion = (sound, soundVolume, activeAudiosRef) => {
+  if (!sound?.url) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const audio = new Audio(sound.url);
+    audio.volume = clampVolume(soundVolume) / 100;
+    activeAudiosRef.current.push(audio);
+
+    const finish = () => {
+      audio.removeEventListener('ended', finish);
+      audio.removeEventListener('error', finish);
+      activeAudiosRef.current = activeAudiosRef.current.filter((activeAudio) => activeAudio !== audio);
+      resolve();
+    };
+
+    audio.addEventListener('ended', finish);
+    audio.addEventListener('error', finish);
+
+    audio.play().catch(finish);
+  });
+};
+
+const VISUAL_ACTION_DELAY_MS = 300;
+
+const waitForNextPaint = () => (
+  new Promise((resolve) => {
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      setTimeout(resolve, 0);
+      return;
+    }
+
+    window.requestAnimationFrame(() => resolve());
+  })
+);
+
+const waitForVisualAction = async () => {
+  await waitForNextPaint();
+  await new Promise((resolve) => {
+    setTimeout(resolve, VISUAL_ACTION_DELAY_MS);
+  });
+};
+
 const useExecuteAction = (spriteRef) => {
   return useCallback(async (block, sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume, setBroadcastMessage) => { 
     const sprite = spriteRef.current;
     if (!sprite) return;
+
+    if (block.action === PLAY_SOUND) {
+      const sound = sounds.find(({ id }) => id === block.value);
+      await playSoundToCompletion(sound, soundVolume, activeAudiosRef);
+      return;
+    }
 
     await new Promise((resolve) => {
       setSpriteState((prevState) => {
@@ -101,22 +149,6 @@ const useExecuteAction = (spriteRef) => {
           case CHANGE_BACKDROP:
             setBackdropValue(String(block.value));
             break;
-          case PLAY_SOUND: {
-            const sound = sounds.find(({ id }) => id === block.value);
-            if (sound?.url) {
-              const audio = new Audio(sound.url);
-              audio.volume = clampVolume(soundVolume) / 100;
-              activeAudiosRef.current.push(audio);
-
-              const removeAudio = () => {
-                activeAudiosRef.current = activeAudiosRef.current.filter((activeAudio) => activeAudio !== audio);
-              };
-
-              audio.addEventListener('ended', removeAudio, { once: true });
-              void audio.play().catch(removeAudio);
-            }
-            break;
-          }
           case SET_VOLUME:
             setSoundVolume(clampVolume(block.value));
             break;
@@ -143,7 +175,7 @@ const useExecuteAction = (spriteRef) => {
         sprite.style.transform = `translate(${newState.x}px, ${newState.y}px) rotate(${newState.rotation + 90}deg) scale(${newState.size / 100})`;
         return newState;
       });
-      resolve();
+      waitForVisualAction().then(resolve);
         });
   }, [spriteRef]);
 };
