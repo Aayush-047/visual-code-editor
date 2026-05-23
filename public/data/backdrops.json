@@ -1,0 +1,230 @@
+[
+  {
+    "id": "white-space",
+    "name": "White Space",
+    "url": "",
+    "type": "builtin"
+  },
+  {
+    "id": "beach",
+    "name": "Beach",
+    "url": "/assets/backdrops/beach1.png",
+    "type": "builtin"
+  },
+  {
+    "id": "forest",
+    "name": "Forest",
+    "url": "/assets/backdrops/forest.png",
+    "type": "builtin"
+  },
+  {
+    "id": "city",
+    "name": "City",
+    "url": "/assets/backdrops/city.png",
+    "type": "builtin"
+  },
+  {
+    "id": "space",
+    "name": "Space",
+    "url": "/assets/backdrops/space",
+    "type": "builtin"
+  },
+  {
+    "id": "baseball",
+    "name": "Baseball",
+    "url": "/assets/backdrops/baseball.svg",
+    "type": "builtin"
+  },
+  {
+    "id": "basketball",
+    "name": "Basketball",
+    "url": "/assets/backdrops/basketball.svg",
+    "type": "builtin"
+  },
+  {
+    "id": "beach2",
+    "name": "Beach2",
+    "url": "/assets/backdrops/beach2",
+    "type": "builtin"
+  },
+  {
+    "id": "bedroom1",
+    "name": "Bedroom1",
+    "url": "/assets/backdrops/bedroom1.png",
+    "type": "builtin"
+  },
+  {
+    "id": "bedroom2",
+    "name": "Bedroom2",
+    "url": "/assets/backdrops/bedroom2",
+    "type": "builtin"
+  },
+  {
+    "id": "bedroom3",
+    "name": "Bedroom3",
+    "url": "/assets/backdrops/bedroom3",
+    "type": "builtin"
+  },
+  {
+    "id": "castle",
+    "name": "Castle",
+    "url": "/assets/backdrops/castle.png",
+    "type": "builtin"
+  },
+  {
+    "id": "concert",
+    "name": "Concert",
+    "url": "/assets/backdrops/concert.png",
+    "type": "builtin"
+  },
+  {
+    "id": "desert",
+    "name": "Desert",
+    "url": "/assets/backdrops/desert",
+    "type": "builtin"
+  },
+  {
+    "id": "farm",
+    "name": "Farm",
+    "url": "/assets/backdrops/farm.png",
+    "type": "builtin"
+  },
+  {
+    "id": "football",
+    "name": "Football",
+    "url": "/assets/backdrops/football",
+    "type": "builtin"
+  },
+  {
+    "id": "galaxy",
+    "name": "Galaxy",
+    "url": "/assets/backdrops/galaxy",
+    "type": "builtin"
+  },
+  {
+    "id": "grass",
+    "name": "Grass",
+    "url": "/assets/backdrops/grass.svg",
+    "type": "builtin"
+  },
+  {
+    "id": "hall",
+    "name": "Hall",
+    "url": "/assets/backdrops/hall.png",
+    "type": "builtin"
+  },
+  {
+    "id": "jurassic",
+    "name": "Jurassic",
+    "url": "/assets/backdrops/jurassic.svg",
+    "type": "builtin"
+  },
+  {
+    "id": "metro",
+    "name": "Metro",
+    "url": "/assets/backdrops/metro",
+    "type": "builtin"
+  },
+  {
+    "id": "moon",
+    "name": "Moon",
+    "url": "/assets/backdrops/moon.png",
+    "type": "builtin"
+  },
+  {
+    "id": "mountain",
+    "name": "Mountain",
+    "url": "/assets/backdrops/mountain",
+    "type": "builtin"
+  },
+  {
+    "id": "night-city",
+    "name": "Night City",
+    "url": "/assets/backdrops/night%20city",
+    "type": "builtin"
+  },
+  {
+    "id": "party",
+    "name": "Party",
+    "url": "/assets/backdrops/party.svg",
+    "type": "builtin"
+  },
+  {
+    "id": "playground",
+    "name": "Playground",
+    "url": "/assets/backdrops/playground",
+    "type": "builtin"
+  },
+  {
+    "id": "pool",
+    "name": "Pool",
+    "url": "/assets/backdrops/pool",
+    "type": "builtin"
+  },
+  {
+    "id": "school",
+    "name": "School",
+    "url": "/assets/backdrops/school",
+    "type": "builtin"
+  },
+  {
+    "id": "slopes",
+    "name": "Slopes",
+    "url": "/assets/backdrops/slopes.png",
+    "type": "builtin"
+  },
+  {
+    "id": "space-city",
+    "name": "Space City",
+    "url": "/assets/backdrops/space%20city",
+    "type": "builtin"
+  },
+  {
+    "id": "space-city-2",
+    "name": "Space City 2",
+    "url": "/assets/backdrops/space%20city%202",
+    "type": "builtin"
+  },
+  {
+    "id": "space-ship",
+    "name": "Space Ship",
+    "url": "/assets/backdrops/space%20ship",
+    "type": "builtin"
+  },
+  {
+    "id": "underwater",
+    "name": "Underwater",
+    "url": "/assets/backdrops/underwater.svg",
+    "type": "builtin"
+  },
+  {
+    "id": "underwater2",
+    "name": "Underwater2",
+    "url": "/assets/backdrops/underwater2.png",
+    "type": "builtin"
+  },
+  {
+    "id": "urban",
+    "name": "Urban",
+    "url": "/assets/backdrops/urban",
+    "type": "builtin"
+  },
+  {
+    "id": "winter",
+    "name": "Winter",
+    "url": "/assets/backdrops/winter.svg",
+    "type": "builtin"
+  },
+  {
+    "id": "witchhouse",
+    "name": "Witchhouse",
+    "url": "/assets/backdrops/witchhouse.svg",
+    "type": "builtin"
+  },
+  {
+    "id": "woods",
+    "name": "Woods",
+    "url": "/assets/backdrops/woods.svg",
+    "type": "builtin"
+  }
+]

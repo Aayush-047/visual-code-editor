@@ -1,0 +1,434 @@
+[
+  {
+    "id": "apple",
+    "name": "Apple",
+    "src": "/assets/sprites/apple.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "banana",
+    "name": "Banana",
+    "src": "/assets/sprites/banana.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "baseball",
+    "name": "Baseball",
+    "src": "/assets/sprites/baseball.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "basketball",
+    "name": "Basketball",
+    "src": "/assets/sprites/basketball.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "bat",
+    "name": "Bat",
+    "src": "/assets/sprites/bat.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "bear",
+    "name": "Bear",
+    "src": "/assets/sprites/bear.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "bell",
+    "name": "Bell",
+    "src": "/assets/sprites/bell.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "bowl",
+    "name": "Bowl",
+    "src": "/assets/sprites/bowl.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "bread",
+    "name": "Bread",
+    "src": "/assets/sprites/bread.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "butterfly",
+    "name": "Butterfly",
+    "src": "/assets/sprites/butterfly.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "cake",
+    "name": "Cake",
+    "src": "/assets/sprites/cake.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "cat",
+    "name": "Cat",
+    "src": "/assets/sprites/cat.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "chick",
+    "name": "Chick",
+    "src": "/assets/sprites/chick.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "crab",
+    "name": "Crab",
+    "src": "/assets/sprites/crab.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "dinosaur",
+    "name": "Dinosaur",
+    "src": "/assets/sprites/dinosaur.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "dinosaur2",
+    "name": "Dinosaur2",
+    "src": "/assets/sprites/dinosaur2.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "dinosaur3",
+    "name": "Dinosaur3",
+    "src": "/assets/sprites/dinosaur3.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "dog",
+    "name": "Dog",
+    "src": "/assets/sprites/dog.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "donut",
+    "name": "Donut",
+    "src": "/assets/sprites/donut.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "dove",
+    "name": "Dove",
+    "src": "/assets/sprites/dove.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "dragon",
+    "name": "Dragon",
+    "src": "/assets/sprites/dragon.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "dragonfly",
+    "name": "Dragonfly",
+    "src": "/assets/sprites/dragonfly.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "drum",
+    "name": "Drum",
+    "src": "/assets/sprites/drum.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "duck",
+    "name": "Duck",
+    "src": "/assets/sprites/duck.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "egg",
+    "name": "Egg",
+    "src": "/assets/sprites/egg.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "elephant",
+    "name": "Elephant",
+    "src": "/assets/sprites/elephant.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "fish",
+    "name": "Fish",
+    "src": "/assets/sprites/fish.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "foodtruck",
+    "name": "Foodtruck",
+    "src": "/assets/sprites/foodtruck.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "fox",
+    "name": "Fox",
+    "src": "/assets/sprites/fox.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "frog",
+    "name": "Frog",
+    "src": "/assets/sprites/frog.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "giraffe",
+    "name": "Giraffe",
+    "src": "/assets/sprites/giraffe.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "glass",
+    "name": "Glass",
+    "src": "/assets/sprites/glass.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "grasshopper",
+    "name": "Grasshopper",
+    "src": "/assets/sprites/grasshopper.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "griffin",
+    "name": "Griffin",
+    "src": "/assets/sprites/griffin.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "guitar",
+    "name": "Guitar",
+    "src": "/assets/sprites/guitar.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "hare",
+    "name": "Hare",
+    "src": "/assets/sprites/hare.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "hedgehog",
+    "name": "Hedgehog",
+    "src": "/assets/sprites/hedgehog.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "hen",
+    "name": "Hen",
+    "src": "/assets/sprites/hen.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "hippo",
+    "name": "Hippo",
+    "src": "/assets/sprites/hippo.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "horse",
+    "name": "Horse",
+    "src": "/assets/sprites/horse.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "jar",
+    "name": "Jar",
+    "src": "/assets/sprites/jar.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "jellyfish",
+    "name": "Jellyfish",
+    "src": "/assets/sprites/jellyfish.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "keyboard",
+    "name": "Keyboard",
+    "src": "/assets/sprites/keyboard.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "ladybug",
+    "name": "Ladybug",
+    "src": "/assets/sprites/ladybug.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "lion",
+    "name": "Lion",
+    "src": "/assets/sprites/lion.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "llama",
+    "name": "Llama",
+    "src": "/assets/sprites/llama.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "milk",
+    "name": "Milk",
+    "src": "/assets/sprites/milk.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "monkey",
+    "name": "Monkey",
+    "src": "/assets/sprites/monkey.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "mouse",
+    "name": "Mouse",
+    "src": "/assets/sprites/mouse.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "octopus",
+    "name": "Octopus",
+    "src": "/assets/sprites/octopus.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "orange",
+    "name": "Orange",
+    "src": "/assets/sprites/orange.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "owl",
+    "name": "Owl",
+    "src": "/assets/sprites/owl.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "panther",
+    "name": "Panther",
+    "src": "/assets/sprites/panther.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "parrot",
+    "name": "Parrot",
+    "src": "/assets/sprites/parrot.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "penguin",
+    "name": "Penguin",
+    "src": "/assets/sprites/penguin.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "polarbear",
+    "name": "Polarbear",
+    "src": "/assets/sprites/polarbear.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "rabbit",
+    "name": "Rabbit",
+    "src": "/assets/sprites/rabbit.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "radio",
+    "name": "Radio",
+    "src": "/assets/sprites/radio.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "reindeer",
+    "name": "Reindeer",
+    "src": "/assets/sprites/reindeer.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "rooster",
+    "name": "Rooster",
+    "src": "/assets/sprites/rooster.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "salad",
+    "name": "Salad",
+    "src": "/assets/sprites/salad.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "shark",
+    "name": "Shark",
+    "src": "/assets/sprites/shark.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "snake",
+    "name": "Snake",
+    "src": "/assets/sprites/snake.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "soccer",
+    "name": "Soccer",
+    "src": "/assets/sprites/soccer.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "speaker",
+    "name": "Speaker",
+    "src": "/assets/sprites/speaker.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "starfish",
+    "name": "Starfish",
+    "src": "/assets/sprites/starfish.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "strawberry",
+    "name": "Strawberry",
+    "src": "/assets/sprites/strawberry.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "taco",
+    "name": "Taco",
+    "src": "/assets/sprites/taco.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "toucan",
+    "name": "Toucan",
+    "src": "/assets/sprites/toucan.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "trumpet",
+    "name": "Trumpet",
+    "src": "/assets/sprites/trumpet.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "watermelon",
+    "name": "Watermelon",
+    "src": "/assets/sprites/watermelon.svg",
+    "color": "#FFAB19"
+  },
+  {
+    "id": "zebra",
+    "name": "Zebra",
+    "src": "/assets/sprites/zebra.svg",
+    "color": "#FFAB19"
+  }
+]

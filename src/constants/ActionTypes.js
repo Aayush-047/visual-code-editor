@@ -24,6 +24,7 @@ export const WHEN_KEY_PRESSED = 'when';
 export const WHEN_SPRITE_CLICKED = 'when sprite clicked';
 export const WHEN_BACKDROP_SWITCHES_TO = 'when backdrop switches to';
 export const WHEN_LOUDNESS_GREATER_THAN = 'when loudness >';
+export const WHEN_I_RECEIVE = 'when I receive';
 export const BROADCAST_MESSAGE_FOR = 'broadcast message for';
 export const WAIT_SECONDS = 'wait seconds';
 export const REPEAT_TIMES = 'repeat times';

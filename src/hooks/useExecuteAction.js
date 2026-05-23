@@ -26,9 +26,9 @@ const stopAllSounds = (activeAudiosRef) => {
   activeAudiosRef.current = [];
 };
 
-const parseDuration = (value) => {
+const parseDuration = (value, fallback = 2) => {
   const duration = parseFloat(value);
-  return Number.isNaN(duration) ? 2 : Math.max(0, duration);
+  return Number.isNaN(duration) ? fallback : Math.max(0, duration);
 };
 
 const playSoundToCompletion = (sound, soundVolume, activeAudiosRef) => {
@@ -73,14 +73,45 @@ const waitForVisualAction = async () => {
   });
 };
 
-const useExecuteAction = (spriteRef) => {
-  return useCallback(async (block, sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume, setBroadcastMessage) => { 
-    const sprite = spriteRef.current;
-    if (!sprite) return;
+const getBroadcastMessageValue = (value) => (
+  typeof value === 'object' && value !== null ? (value.message || 'Hello!') : (value || 'Hello!')
+);
 
+const useExecuteAction = () => {
+  return useCallback(async (block, sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume, onBroadcast) => {
     if (block.action === PLAY_SOUND) {
       const sound = sounds.find(({ id }) => id === block.value);
       await playSoundToCompletion(sound, soundVolume, activeAudiosRef);
+      return;
+    }
+
+    if (block.action === SAY || block.action === THINK) {
+      await new Promise((resolve) => {
+        setSpeechBubble({ message: block.value || (block.action === SAY ? 'Hello!' : 'Hmm...'), isThinking: block.action === THINK });
+        setTimeout(() => {
+          setSpeechBubble({ message: '', isThinking: false });
+          resolve();
+        }, 2000);
+      });
+      return;
+    }
+
+    if (block.action === SAY_TIMER || block.action === THINK_TIMER) {
+      await new Promise((resolve) => {
+        setSpeechBubble({
+          message: block.value?.message || (block.action === SAY_TIMER ? 'Hello!' : 'Hmm...'),
+          isThinking: block.action === THINK_TIMER,
+        });
+        setTimeout(() => {
+          setSpeechBubble({ message: '', isThinking: false });
+          resolve();
+        }, parseDuration(block.value?.duration) * 1000);
+      });
+      return;
+    }
+
+    if (block.action === BROADCAST_MESSAGE_FOR) {
+      await Promise.resolve(onBroadcast?.(getBroadcastMessageValue(block.value)));
       return;
     }
 
@@ -115,22 +146,6 @@ const useExecuteAction = (spriteRef) => {
           case POINT_TOWARDS_RANDOM:
             newState.rotation = Math.floor(Math.random() * 361);
             break;
-          case SAY:
-          case THINK:
-            setSpeechBubble({ message: block.value || (block.action === SAY ? 'Hello!' : 'Hmm...'), isThinking: block.action === THINK });
-            setTimeout(() => {
-              setSpeechBubble({ message: '', isThinking: false });
-              resolve();
-            }, 2000);
-            return prevState;
-          case SAY_TIMER:
-          case THINK_TIMER:
-            setSpeechBubble({ message: block.value.message || (block.action === SAY_TIMER ? 'Hello!' : 'Hmm...'), isThinking: block.action === THINK_TIMER });
-            setTimeout(() => {
-              setSpeechBubble({ message: '', isThinking: false });
-              resolve();
-            }, block.value.duration * 1000);
-            return prevState;
           case CHANGE_SIZE_TO:
             newState.size = parseInt(block.value, 10);
             break;
@@ -138,10 +153,10 @@ const useExecuteAction = (spriteRef) => {
             newState.size += parseInt(block.value, 10);
             break;
           case HIDE:
-            sprite.style.opacity = 0;
+            newState.visible = false;
             break;
           case SHOW:
-            sprite.style.opacity = 1;
+            newState.visible = true;
             break;
           case CHANGE_COLOR:
             setSpriteColor(block.value);
@@ -158,26 +173,15 @@ const useExecuteAction = (spriteRef) => {
           case CLEAR_ALL_SOUNDS:
             stopAllSounds(activeAudiosRef);
             break;
-          case BROADCAST_MESSAGE_FOR:
-            setBroadcastMessage?.({
-              message: block.value?.message || 'Hello!',
-              color: block.value?.color || '#111111',
-            });
-            setTimeout(() => {
-              setBroadcastMessage?.({ message: '', color: '#111111' });
-              resolve();
-            }, parseDuration(block.value?.duration) * 1000);
-            return prevState;
           default:
             break;
         }
-
-        sprite.style.transform = `translate(${newState.x}px, ${newState.y}px) rotate(${newState.rotation + 90}deg) scale(${newState.size / 100})`;
         return newState;
       });
+
       waitForVisualAction().then(resolve);
-        });
-  }, [spriteRef]);
+    });
+  }, []);
 };
 
 export default useExecuteAction;

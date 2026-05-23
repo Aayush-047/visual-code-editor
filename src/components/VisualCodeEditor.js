@@ -1,13 +1,13 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { Play, Rewind } from 'lucide-react';
-import CatSprite from './CatSprite';
+import { ChevronDown, FileText, FolderOpen, Image as ImageIcon, Maximize2, Minimize2, Play, Rewind, Save, Search, Shapes, Upload } from 'lucide-react';
 import Block from './Block';
 import DroppableArea from './DroppableArea';
 import SpeechBubble from './SpeechBubble';
+import SpriteGraphic from './SpriteGraphic';
+import SpritePaintEditor from './SpritePaintEditor';
 import { EVENTS, MOTION, LOOKS, SOUND, SPRITE, CONTROLS, OPERATORS, VARIABLES } from '../constants/BlockTypes';
-import { BACKDROPS } from '../data/BackDrops';
 import useExecuteAction from '../hooks/useExecuteAction';
 import * as actionTypes from '../constants/ActionTypes';
 
@@ -15,16 +15,29 @@ const DEFAULT_SOUNDS = [
   { id: 'meow', name: 'Meow', type: 'builtin', url: '/sounds/Meow.mp3' },
 ];
 
-const DEFAULT_SPRITES = [
-  { id: 'cat', name: 'Cat' },
+const SPRITE_LIBRARY = [
+  { id: 'cat', name: 'Cat', src: '/assets/sprites/cat.svg', color: '#FFAB19' },
+  { id: 'sky-cat', name: 'Sky Cat', src: '/assets/sprites/cat.svg', color: '#38BDF8' },
+  { id: 'mint-cat', name: 'Mint Cat', src: '/assets/sprites/cat.svg', color: '#34D399' },
+  { id: 'rose-cat', name: 'Rose Cat', src: '/assets/sprites/cat.svg', color: '#FB7185' },
+];
+const BACKDROP_LIBRARY = [
+  { id: 'white-space', name: 'White Space', url: '', type: 'builtin' },
+  { id: 'beach', name: 'Beach', url: '/assets/backdrops/beach1.png', type: 'builtin' },
+  { id: 'forest', name: 'Forest', url: '/assets/backdrops/forest.png', type: 'builtin' },
+  { id: 'city', name: 'City', url: '/assets/backdrops/city.png', type: 'builtin' },
+  { id: 'space', name: 'Space', url: '/assets/backdrops/space', type: 'builtin' },
 ];
 
 const RECORD_SOUND_OPTION = '__record_sound__';
+const EDITOR_PANEL_HEIGHT = 'min(600px, calc(100vh - 14rem))';
+const EMPTY_BLOCKS = [];
 const EVENT_TRIGGER_ACTIONS = [
   actionTypes.WHEN_KEY_PRESSED,
   actionTypes.WHEN_SPRITE_CLICKED,
   actionTypes.WHEN_BACKDROP_SWITCHES_TO,
   actionTypes.WHEN_LOUDNESS_GREATER_THAN,
+  actionTypes.WHEN_I_RECEIVE,
 ];
 const CONTROL_CONTAINER_ACTIONS = [
   actionTypes.REPEAT_TIMES,
@@ -55,9 +68,154 @@ const OPERATOR_ACTIONS = [
   actionTypes.OPERATOR_MATH_FUNCTION,
   actionTypes.OPERATOR_PICK_RANDOM,
 ];
+const TIMED_ACTIONS = new Set([
+  actionTypes.SAY,
+  actionTypes.THINK,
+  actionTypes.SAY_TIMER,
+  actionTypes.THINK_TIMER,
+  actionTypes.BROADCAST_MESSAGE_FOR,
+  actionTypes.PLAY_SOUND,
+]);
 
 const isOperatorAction = (action) => OPERATOR_ACTIONS.includes(action);
 const isVariableReporterAction = (action) => action === actionTypes.VARIABLE_REPORTER || action === actionTypes.LIST_REPORTER;
+const shouldApplyStepDelay = (block) => !TIMED_ACTIONS.has(block?.action);
+
+const describeBlock = (block) => {
+  if (!block) return 'Unknown block';
+
+  if (block.action === actionTypes.WHEN_KEY_PRESSED) {
+    return `when ${block.value} key pressed`;
+  }
+
+  if (block.action === actionTypes.WHEN_BACKDROP_SWITCHES_TO) {
+    return `when backdrop switches to ${block.value}`;
+  }
+
+  if (block.action === actionTypes.WHEN_I_RECEIVE) {
+    return `when I receive ${block.value}`;
+  }
+
+  if (block.type === VARIABLES && block.value?.name) {
+    return `${block.action} ${block.value.name}`;
+  }
+
+  return block.action;
+};
+
+const StagePreview = ({
+  previewRef,
+  spriteRef,
+  sprites,
+  selectedSpriteId,
+  selectedBackdrop,
+  onSpritePointerDown,
+  onSpritePointerMove,
+  onSpritePointerUp,
+  onSpriteClick,
+  isInteractive = true,
+  panelHeight = EDITOR_PANEL_HEIGHT,
+  className = 'border p-4 relative overflow-x-auto overflow-y-auto',
+}) => (
+  <div
+    ref={previewRef}
+    className={className}
+    style={{
+      height: panelHeight,
+      minHeight: panelHeight,
+      backgroundColor: selectedBackdrop?.url ? undefined : 'white',
+      backgroundImage: selectedBackdrop?.url ? `url(${selectedBackdrop.url})` : 'none',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+    }}
+  >
+    {sprites.map((sprite) => {
+      const isSelectedSprite = sprite.id === selectedSpriteId;
+
+      return (
+        <div
+          key={sprite.id}
+          ref={isSelectedSprite ? spriteRef : null}
+          className={`absolute left-1/2 top-1/2 transition-all duration-300 select-none ${
+            isInteractive && isSelectedSprite ? 'cursor-grab active:cursor-grabbing' : ''
+          }`}
+          onPointerDown={isInteractive && isSelectedSprite ? onSpritePointerDown : undefined}
+          onPointerMove={isInteractive && isSelectedSprite ? onSpritePointerMove : undefined}
+          onPointerUp={isInteractive && isSelectedSprite ? onSpritePointerUp : undefined}
+          onPointerCancel={isInteractive && isSelectedSprite ? onSpritePointerUp : undefined}
+          onClick={isInteractive && isSelectedSprite ? onSpriteClick : undefined}
+          style={{
+            touchAction: isSelectedSprite ? 'none' : 'auto',
+            transform: `translate(calc(-50% + ${sprite.spriteState.x}px), calc(-50% + ${sprite.spriteState.y}px))`,
+            opacity: sprite.spriteState.visible === false ? 0 : 1,
+            zIndex: isSelectedSprite ? 10 : 1,
+          }}
+        >
+          {sprite.speechBubble?.message && (
+            <SpeechBubble message={sprite.speechBubble.message} isThinking={sprite.speechBubble.isThinking} />
+          )}
+          <div
+            className="h-24 w-24"
+            style={{
+              transform: `rotate(${sprite.spriteState.rotation + 90}deg) scale(${sprite.spriteState.size / 100})`,
+              transformOrigin: 'center center',
+            }}
+          >
+            <SpriteGraphic src={sprite.src} markup={sprite.svgMarkup} color={sprite.color} />
+          </div>
+        </div>
+      );
+    })}
+  </div>
+);
+
+const PreviewControls = ({
+  isRunning,
+  replayableBlocks,
+  selectedReplayBlock,
+  selectedReplayBlockId,
+  setSelectedReplayBlockId,
+  runCode,
+  replaySelectedBlock,
+  compact = false,
+}) => (
+  <div className={`flex flex-wrap items-center gap-2 ${compact ? '' : 'mt-4 justify-end'}`}>
+    <button
+      type="button"
+      onClick={runCode}
+      disabled={isRunning}
+      className={`rounded bg-green-500 p-2 text-white flex items-center ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
+      <Play size={16} className="mr-1" /> Run Code
+    </button>
+    <select
+      value={selectedReplayBlock?.id || selectedReplayBlockId || ''}
+      onChange={(event) => setSelectedReplayBlockId(event.target.value)}
+      disabled={replayableBlocks.length === 0 || isRunning}
+      className={`h-10 w-52 rounded-full border border-gray-300 bg-white px-3 text-sm text-black shadow-sm ${
+        replayableBlocks.length === 0 || isRunning ? 'cursor-not-allowed opacity-50' : ''
+      }`}
+    >
+      {replayableBlocks.length === 0 ? (
+        <option value="">No replay blocks</option>
+      ) : (
+        replayableBlocks.map((block, blockIndex) => (
+          <option key={block.id} value={block.id}>
+            {blockIndex + 1}. {describeBlock(block)}
+          </option>
+        ))
+      )}
+    </select>
+    <button
+      type="button"
+      onClick={() => void replaySelectedBlock()}
+      disabled={!selectedReplayBlock || isRunning}
+      className={`rounded bg-blue-500 p-2 text-white flex items-center ${(!selectedReplayBlock || isRunning) ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
+      <Rewind size={16} className="mr-1" /> Replay
+    </button>
+  </div>
+);
 
 const cloneBlockValue = (value) => {
   if (value && typeof value === 'object') {
@@ -72,6 +230,20 @@ const cloneBlockValue = (value) => {
 
   return value;
 };
+
+const createSpriteInstance = (librarySprite) => ({
+  id: `sprite-${Date.now()}-${Math.random()}`,
+  libraryId: librarySprite.id,
+  name: librarySprite.name,
+  src: librarySprite.src,
+  color: librarySprite.color,
+  svgMarkup: null,
+  spriteState: { x: 0, y: 0, rotation: -90, size: 100, visible: true },
+  speechBubble: { message: '', isThinking: false },
+  blocks: [],
+});
+
+const INITIAL_SPRITE = createSpriteInstance(SPRITE_LIBRARY[0]);
 
 const createWorkspaceBlock = (item) => ({
   id: `${Date.now()}-${Math.random()}`,
@@ -237,6 +409,47 @@ const updateOperatorSlotById = (blocksToUpdate, blockId, slotName, slotValue) =>
 
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const BLOCK_STEP_DELAY_MS = 1000;
+const ROOT_SVG_STYLE = 'width:100%;height:100%;display:block;';
+const normalizeSvgMarkup = (markup) => {
+  if (!markup || !/<svg[\s>]/i.test(markup)) {
+    return markup;
+  }
+
+  return markup.replace(/<svg\b([^>]*)>/i, (fullMatch, attributes = '') => {
+    const styleMatch = attributes.match(/\sstyle=(['"])(.*?)\1/i);
+
+    if (styleMatch) {
+      const quote = styleMatch[1];
+      const existingStyle = styleMatch[2];
+      const normalizedExistingStyle = existingStyle.trim().endsWith(';') || existingStyle.trim() === ''
+        ? existingStyle.trim()
+        : `${existingStyle.trim()};`;
+      const mergedStyle = normalizedExistingStyle.includes(ROOT_SVG_STYLE)
+        ? normalizedExistingStyle
+        : `${normalizedExistingStyle}${ROOT_SVG_STYLE}`;
+
+      return `<svg${attributes.replace(styleMatch[0], ` style=${quote}${mergedStyle}${quote}`)}>`;
+    }
+
+    return `<svg${attributes} style="${ROOT_SVG_STYLE}">`;
+  });
+};
+
+const loadSvgMarkup = async (src) => {
+  if (!src) {
+    return '';
+  }
+
+  const response = await fetch(src);
+
+  if (!response.ok) {
+    throw new Error(`Unable to load sprite asset: ${src}`);
+  }
+
+  const markup = await response.text();
+  return normalizeSvgMarkup(markup);
+};
+
 const toNumber = (value) => {
   const parsedValue = typeof value === 'number' ? value : parseFloat(value);
   return Number.isNaN(parsedValue) ? 0 : parsedValue;
@@ -272,41 +485,57 @@ const removeVariableReporterBlocks = (blocksToUpdate, entityType, entityName) =>
 );
 
 const VisualCodeEditor = () => {
-  const [blocks, setBlocks] = useState([]);
-  const [history, setHistory] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
   const spriteRef = useRef(null);
   const previewRef = useRef(null);
   const toastTimeoutRef = useRef(null);
   const spriteDragRef = useRef({ isDragging: false, hasMoved: false, offsetX: 0, offsetY: 0 });
   const backdropFileInputRef = useRef(null);
+  const projectFileInputRef = useRef(null);
   const pendingBackdropChangeRef = useRef(null);
-  const uploadedBackdropsRef = useRef([]);
+  const sessionBackdropsRef = useRef([]);
   const mediaRecorderRef = useRef(null);
   const recordingStreamRef = useRef(null);
   const recordedChunksRef = useRef([]);
   const activeAudiosRef = useRef([]);
-  const [spriteState, setSpriteState] = useState({ x: 0, y: 0, rotation: -90, size: 100 });
   const [isRunning, setIsRunning] = useState(false);
   const [isRecordingSound, setIsRecordingSound] = useState(false);
-  const [spriteColor, setSpriteColor] = useState('#FFAB19');
-  const [backdropValue, setBackdropValue] = useState('0');
-  const [speechBubble, setSpeechBubble] = useState({ message: '', isThinking: false });
-  const [broadcastMessage, setBroadcastMessage] = useState({ message: '', color: '#111111' });
+  const [backdropValue, setBackdropValue] = useState(BACKDROP_LIBRARY[0].id);
   const [sounds, setSounds] = useState(DEFAULT_SOUNDS);
   const [soundVolume, setSoundVolume] = useState(100);
-  const [uploadedBackdrops, setUploadedBackdrops] = useState([]);
+  const [backdropLibrary, setBackdropLibrary] = useState(BACKDROP_LIBRARY);
+  const [sessionBackdrops, setSessionBackdrops] = useState(() => [BACKDROP_LIBRARY[0]]);
   const [recordingModalState, setRecordingModalState] = useState('closed');
   const [pendingRecordedSound, setPendingRecordedSound] = useState(null);
+  const [selectedReplayBlockId, setSelectedReplayBlockId] = useState('');
   const [isVariableModalOpen, setIsVariableModalOpen] = useState(false);
   const [variableModalType, setVariableModalType] = useState('variable');
   const [pendingVariableName, setPendingVariableName] = useState('');
   const [variableNames, setVariableNames] = useState([]);
   const [listNames, setListNames] = useState([]);
-  const [, setVariableValues] = useState({});
-  const [, setListValues] = useState({});
+  const [variableValues, setVariableValues] = useState({});
+  const [listValues, setListValues] = useState({});
   const [activeSidebarTab, setActiveSidebarTab] = useState('blocks');
-  const [selectedSpriteId, setSelectedSpriteId] = useState('cat');
+  const [spriteLibrary, setSpriteLibrary] = useState(SPRITE_LIBRARY);
+  const [sprites, setSprites] = useState(() => [INITIAL_SPRITE]);
+  const [selectedSpriteId, setSelectedSpriteId] = useState(INITIAL_SPRITE.id);
+  const [isProjectSaving, setIsProjectSaving] = useState(false);
+  const [isProjectLoading, setIsProjectLoading] = useState(false);
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
+  const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+  const [isAssetsMenuOpen, setIsAssetsMenuOpen] = useState(false);
+  const [isSpriteLibraryOpen, setIsSpriteLibraryOpen] = useState(false);
+  const [isBackdropLibraryOpen, setIsBackdropLibraryOpen] = useState(false);
+  const [spriteLibrarySearch, setSpriteLibrarySearch] = useState('');
+  const [spriteLibraryFilter, setSpriteLibraryFilter] = useState('all');
+  const [backdropLibrarySearch, setBackdropLibrarySearch] = useState('');
+  const [backdropLibraryFilter, setBackdropLibraryFilter] = useState('all');
+  const [spriteEditorMarkup, setSpriteEditorMarkup] = useState('');
+  const [spriteEditorError, setSpriteEditorError] = useState('');
+  const fileMenuRef = useRef(null);
+  const assetsMenuRef = useRef(null);
+  const spritesRef = useRef([INITIAL_SPRITE]);
+  const triggerBroadcastListenersRef = useRef(() => {});
   const previousBackdropValueRef = useRef(backdropValue);
   const [sidebarBlocks, setSidebarBlocks] = useState([
     { id: 'sidebar-move-x', type: MOTION, action: actionTypes.MOVE_X, value: 10 },
@@ -324,7 +553,7 @@ const VisualCodeEditor = () => {
     { id: 'sidebar-change-size-to', type: LOOKS, action: actionTypes.CHANGE_SIZE_TO, value: 100 },
     { id: 'sidebar-change-size-by', type: LOOKS, action: actionTypes.CHANGE_SIZE_BY, value: 10 },
     { id: 'sidebar-change-color', type: LOOKS, action: actionTypes.CHANGE_COLOR, value: '#FFAB19' },
-    { id: 'sidebar-change-backdrop', type: LOOKS, action: actionTypes.CHANGE_BACKDROP, value: 0 },
+    { id: 'sidebar-change-backdrop', type: LOOKS, action: actionTypes.CHANGE_BACKDROP, value: BACKDROP_LIBRARY[0].id },
     { id: 'sidebar-hide', type: LOOKS, action: actionTypes.HIDE, value: null },
     { id: 'sidebar-show', type: LOOKS, action: actionTypes.SHOW, value: null },
     { id: 'sidebar-play-sound', type: SOUND, action: actionTypes.PLAY_SOUND, value: 'meow' },
@@ -333,9 +562,10 @@ const VisualCodeEditor = () => {
     { id: 'sidebar-clear-all-sounds', type: SOUND, action: actionTypes.CLEAR_ALL_SOUNDS, value: null },
     { id: 'sidebar-when-key-pressed', type: EVENTS, action: actionTypes.WHEN_KEY_PRESSED, value: 'Space' },
     { id: 'sidebar-when-sprite-clicked', type: EVENTS, action: actionTypes.WHEN_SPRITE_CLICKED, value: null },
-    { id: 'sidebar-when-backdrop-switches-to', type: EVENTS, action: actionTypes.WHEN_BACKDROP_SWITCHES_TO, value: 0 },
+    { id: 'sidebar-when-backdrop-switches-to', type: EVENTS, action: actionTypes.WHEN_BACKDROP_SWITCHES_TO, value: BACKDROP_LIBRARY[0].id },
     { id: 'sidebar-when-loudness-greater-than', type: EVENTS, action: actionTypes.WHEN_LOUDNESS_GREATER_THAN, value: 10 },
-    { id: 'sidebar-broadcast-message-for', type: EVENTS, action: actionTypes.BROADCAST_MESSAGE_FOR, value: { message: 'Hello!', duration: 2, color: '#111111' } },
+    { id: 'sidebar-when-i-receive', type: EVENTS, action: actionTypes.WHEN_I_RECEIVE, value: 'Hello!' },
+    { id: 'sidebar-broadcast-message-for', type: EVENTS, action: actionTypes.BROADCAST_MESSAGE_FOR, value: 'Hello!' },
     { id: 'sidebar-wait-seconds', type: CONTROLS, action: actionTypes.WAIT_SECONDS, value: 1 },
     { id: 'sidebar-repeat-times', type: CONTROLS, action: actionTypes.REPEAT_TIMES, value: { times: 10 } },
     { id: 'sidebar-forever', type: CONTROLS, action: actionTypes.FOREVER, value: null },
@@ -369,12 +599,502 @@ const VisualCodeEditor = () => {
     { id: 'sidebar-replace-item-in-list', type: VARIABLES, action: actionTypes.REPLACE_ITEM_IN_LIST, value: { index: 1, item: '', listName: '' } },
   ]);
 
-  const executeAction = useExecuteAction(spriteRef);
-  const availableBackdrops = [
-    ...BACKDROPS.map((backdrop, index) => ({ ...backdrop, id: String(index) })),
-    ...uploadedBackdrops,
-  ];
+  const executeAction = useExecuteAction();
+  const availableBackdrops = sessionBackdrops;
+  const activeSpriteId = selectedSpriteId || sprites[0]?.id || '';
+  const selectedSprite = sprites.find((sprite) => sprite.id === activeSpriteId) || sprites[0] || null;
+  const blocks = selectedSprite?.blocks || EMPTY_BLOCKS;
+  const spriteState = selectedSprite?.spriteState || { x: 0, y: 0, rotation: -90, size: 100 };
   const selectedBackdrop = availableBackdrops.find(({ id }) => id === String(backdropValue)) || availableBackdrops[0];
+  const replayableBlocks = blocks.filter((block) => !isEventTriggerAction(block.action));
+  const selectedReplayBlock = replayableBlocks.find((block) => block.id === selectedReplayBlockId) || replayableBlocks[0] || null;
+  const filteredSpriteLibrary = spriteLibrary.filter((librarySprite) => {
+    const matchesSearch = librarySprite.name.toLowerCase().includes(spriteLibrarySearch.trim().toLowerCase());
+    const isAdded = sprites.some((sprite) => (
+      sprite.libraryId === librarySprite.id
+      || String(sprite.src || '') === String(librarySprite.src || '')
+    ));
+
+    if (spriteLibraryFilter === 'added') {
+      return matchesSearch && isAdded;
+    }
+
+    if (spriteLibraryFilter === 'not-added') {
+      return matchesSearch && !isAdded;
+    }
+
+    return matchesSearch;
+  });
+  const filteredBackdropLibrary = backdropLibrary.filter((libraryBackdrop) => {
+    const matchesSearch = libraryBackdrop.name.toLowerCase().includes(backdropLibrarySearch.trim().toLowerCase());
+    const isAdded = availableBackdrops.some((backdrop) => String(backdrop.id) === String(libraryBackdrop.id));
+
+    if (backdropLibraryFilter === 'added') {
+      return matchesSearch && isAdded;
+    }
+
+    if (backdropLibraryFilter === 'not-added') {
+      return matchesSearch && !isAdded;
+    }
+
+    return matchesSearch;
+  });
+
+  const showToast = useCallback((message) => {
+    setToastMessage(message);
+
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage('');
+      toastTimeoutRef.current = null;
+    }, 2500);
+  }, []);
+
+  const updateSpriteById = useCallback((spriteId, updater) => {
+    setSprites((prevSprites) => prevSprites.map((sprite) => (
+      sprite.id === spriteId ? updater(sprite) : sprite
+    )));
+  }, []);
+
+  const updateSelectedSprite = useCallback((updater) => {
+    const spriteId = selectedSpriteId || sprites[0]?.id;
+    if (!spriteId) {
+      return;
+    }
+
+    updateSpriteById(spriteId, updater);
+  }, [selectedSpriteId, sprites, updateSpriteById]);
+
+  const setSelectedSpriteState = useCallback((nextState) => {
+    updateSelectedSprite((sprite) => ({
+      ...sprite,
+      spriteState: typeof nextState === 'function' ? nextState(sprite.spriteState) : nextState,
+    }));
+  }, [updateSelectedSprite]);
+
+  const setSpriteSpeechBubble = useCallback((spriteId, nextBubble) => {
+    updateSpriteById(spriteId, (sprite) => ({
+      ...sprite,
+      speechBubble: typeof nextBubble === 'function' ? nextBubble(sprite.speechBubble) : nextBubble,
+    }));
+  }, [updateSpriteById]);
+
+  const updateSelectedSpriteBlocks = useCallback((updater) => {
+    updateSelectedSprite((sprite) => ({
+      ...sprite,
+      blocks: updater(sprite.blocks || []),
+    }));
+  }, [updateSelectedSprite]);
+
+  const clearAllSpriteSpeechBubbles = useCallback(() => {
+    setSprites((prevSprites) => prevSprites.map((sprite) => ({
+      ...sprite,
+      speechBubble: { message: '', isThinking: false },
+    })));
+  }, []);
+
+  useEffect(() => {
+    spritesRef.current = sprites;
+  }, [sprites]);
+
+  useEffect(() => {
+    if (!isFileMenuOpen && !isAssetsMenuOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (fileMenuRef.current?.contains(event.target) || assetsMenuRef.current?.contains(event.target)) {
+        return;
+      }
+
+      setIsFileMenuOpen(false);
+      setIsAssetsMenuOpen(false);
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setIsFileMenuOpen(false);
+        setIsAssetsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isAssetsMenuOpen, isFileMenuOpen]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    void fetch('/data/sprites.json')
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Unable to load sprite library.');
+        }
+
+        return response.json();
+      })
+      .then((librarySprites) => {
+        if (!isCancelled && Array.isArray(librarySprites) && librarySprites.length > 0) {
+          setSpriteLibrary(librarySprites);
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setSpriteLibrary(SPRITE_LIBRARY);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    void fetch('/data/backdrops.json')
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Unable to load backdrop library.');
+        }
+
+        return response.json();
+      })
+      .then((libraryBackdrops) => {
+        if (!isCancelled && Array.isArray(libraryBackdrops) && libraryBackdrops.length > 0) {
+          setBackdropLibrary(libraryBackdrops);
+          setSessionBackdrops((prevBackdrops) => {
+            const hasOnlyFallbackBackdrop = prevBackdrops.length === 1 && String(prevBackdrops[0]?.id) === String(BACKDROP_LIBRARY[0].id);
+            return hasOnlyFallbackBackdrop ? [libraryBackdrops[0]] : prevBackdrops;
+          });
+          setBackdropValue((prevBackdropValue) => (
+            prevBackdropValue === BACKDROP_LIBRARY[0].id && libraryBackdrops[0]?.id
+              ? String(libraryBackdrops[0].id)
+              : prevBackdropValue
+          ));
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setBackdropLibrary(BACKDROP_LIBRARY);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (selectedSpriteId && sprites.some((sprite) => sprite.id === selectedSpriteId)) {
+      return;
+    }
+
+    setSelectedSpriteId(sprites[0]?.id || '');
+  }, [selectedSpriteId, sprites]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (!selectedSprite) {
+      setSpriteEditorMarkup('');
+      setSpriteEditorError('');
+      return undefined;
+    }
+
+    if (selectedSprite.svgMarkup) {
+      setSpriteEditorMarkup(selectedSprite.svgMarkup);
+      setSpriteEditorError('');
+      return undefined;
+    }
+
+    void loadSvgMarkup(selectedSprite.src)
+      .then((markup) => {
+        if (!isCancelled) {
+          setSpriteEditorMarkup(markup);
+          setSpriteEditorError('');
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setSpriteEditorMarkup('');
+          setSpriteEditorError('Unable to load SVG source for this sprite.');
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedSprite]);
+
+  const getProjectState = useCallback(() => ({
+    sprites,
+    sidebarBlocks,
+    variableNames,
+    listNames,
+    variableValues,
+    listValues,
+    backdropValue,
+    sessionBackdrops,
+    sounds,
+    soundVolume,
+    selectedSpriteId,
+  }), [
+    backdropValue,
+    listNames,
+    listValues,
+    selectedSpriteId,
+    sidebarBlocks,
+    soundVolume,
+    sounds,
+    sprites,
+    sessionBackdrops,
+    variableNames,
+    variableValues,
+  ]);
+
+  const applyProjectState = useCallback((state = {}) => {
+    const nextSprites = Array.isArray(state.sprites) && state.sprites.length > 0
+      ? state.sprites.map((sprite) => ({
+        ...sprite,
+        src: sprite.src || SPRITE_LIBRARY.find((librarySprite) => librarySprite.id === sprite.libraryId)?.src || SPRITE_LIBRARY[0].src,
+        color: sprite.color || SPRITE_LIBRARY[0].color,
+        svgMarkup: sprite.svgMarkup || null,
+        spriteState: {
+          x: sprite.spriteState?.x ?? 0,
+          y: sprite.spriteState?.y ?? 0,
+          rotation: sprite.spriteState?.rotation ?? -90,
+          size: sprite.spriteState?.size ?? 100,
+          visible: sprite.spriteState?.visible ?? true,
+        },
+        speechBubble: sprite.speechBubble || { message: '', isThinking: false },
+        blocks: Array.isArray(sprite.blocks) ? sprite.blocks : [],
+      }))
+      : [
+        {
+          ...createSpriteInstance(SPRITE_LIBRARY[0]),
+          blocks: Array.isArray(state.blocks) ? state.blocks : [],
+          spriteState: {
+            x: state.spriteState?.x ?? 0,
+            y: state.spriteState?.y ?? 0,
+            rotation: state.spriteState?.rotation ?? -90,
+            size: state.spriteState?.size ?? 100,
+            visible: state.spriteState?.visible ?? true,
+          },
+          color: state.spriteColor || SPRITE_LIBRARY[0].color,
+          svgMarkup: state.svgMarkup || null,
+        },
+      ];
+
+    setSprites(nextSprites);
+    setSidebarBlocks(Array.isArray(state.sidebarBlocks) ? state.sidebarBlocks : []);
+    setVariableNames(Array.isArray(state.variableNames) ? state.variableNames : []);
+    setListNames(Array.isArray(state.listNames) ? state.listNames : []);
+    setVariableValues(state.variableValues && typeof state.variableValues === 'object' ? state.variableValues : {});
+    setListValues(state.listValues && typeof state.listValues === 'object' ? state.listValues : {});
+    const nextSessionBackdrops = Array.isArray(state.sessionBackdrops) && state.sessionBackdrops.length > 0
+      ? state.sessionBackdrops
+      : [BACKDROP_LIBRARY[0], ...(Array.isArray(state.uploadedBackdrops) ? state.uploadedBackdrops : [])];
+    setSessionBackdrops(nextSessionBackdrops);
+    setBackdropValue(
+      nextSessionBackdrops.some((backdrop) => String(backdrop.id) === String(state.backdropValue ?? '0'))
+        ? String(state.backdropValue ?? '0')
+        : String(nextSessionBackdrops[0]?.id ?? '0')
+    );
+    setSounds(Array.isArray(state.sounds) ? state.sounds : DEFAULT_SOUNDS);
+    setSoundVolume(state.soundVolume ?? 100);
+    setSelectedSpriteId(state.selectedSpriteId || nextSprites[0]?.id || '');
+  }, []);
+
+  const handleSaveProject = useCallback(async () => {
+    setIsProjectSaving(true);
+
+    try {
+      const projectFile = {
+        format: 'visual-code-editor-project',
+        version: 1,
+        savedAt: new Date().toISOString(),
+        state: getProjectState(),
+      };
+      const fileContents = JSON.stringify(projectFile, null, 2);
+      const filename = 'visual-code-project.json';
+
+      if (window.showSaveFilePicker) {
+        const fileHandle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [
+            {
+              description: 'Visual Code Editor Project',
+              accept: { 'application/json': ['.json'] },
+            },
+          ],
+        });
+        const writable = await fileHandle.createWritable();
+        await writable.write(fileContents);
+        await writable.close();
+      } else {
+        const blob = new Blob([fileContents], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+
+      showToast('Project file saved.');
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        showToast(error.message || 'Unable to save project file.');
+      }
+    } finally {
+      setIsProjectSaving(false);
+    }
+  }, [getProjectState, showToast]);
+
+  const loadProjectFile = useCallback(async (file) => {
+    if (!file) return;
+
+    setIsProjectLoading(true);
+
+    try {
+      const fileContents = await file.text();
+      const projectFile = JSON.parse(fileContents);
+
+      if (projectFile.format !== 'visual-code-editor-project' || !projectFile.state) {
+        throw new Error('Choose a valid Visual Code Editor project file.');
+      }
+
+      applyProjectState(projectFile.state);
+      showToast('Project file loaded.');
+    } catch (error) {
+      showToast(error.message || 'Unable to load project file.');
+    } finally {
+      setIsProjectLoading(false);
+    }
+  }, [applyProjectState, showToast]);
+
+  const handleLoadProject = useCallback(() => {
+    projectFileInputRef.current?.click();
+  }, []);
+
+  const handleProjectFileChange = useCallback((event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    void loadProjectFile(file);
+  }, [loadProjectFile]);
+
+  const handleAddSprite = useCallback((librarySprite) => {
+    const nextSprite = createSpriteInstance(librarySprite);
+    setSprites((prevSprites) => [...prevSprites, nextSprite]);
+    setSelectedSpriteId(nextSprite.id);
+    setActiveSidebarTab('sprite');
+    setIsSpriteLibraryOpen(false);
+    showToast(`${librarySprite.name} added.`);
+  }, [showToast]);
+
+  const handleRemoveSprite = useCallback((spriteId) => {
+    setSprites((prevSprites) => {
+      if (prevSprites.length <= 1) {
+        showToast('Keep at least one sprite in the project.');
+        return prevSprites;
+      }
+
+      return prevSprites.filter((sprite) => sprite.id !== spriteId);
+    });
+  }, [showToast]);
+
+  const handleSelectBackdrop = useCallback((nextBackdropId) => {
+    setBackdropValue(String(nextBackdropId));
+    setActiveSidebarTab('backdrops');
+    showToast('Initial backdrop updated.');
+  }, [showToast]);
+
+  const handleAddBackdropToSession = useCallback((libraryBackdrop) => {
+    setSessionBackdrops((prevBackdrops) => {
+      if (prevBackdrops.some((backdrop) => String(backdrop.id) === String(libraryBackdrop.id))) {
+        return prevBackdrops;
+      }
+
+      return [...prevBackdrops, libraryBackdrop];
+    });
+    showToast(`${libraryBackdrop.name} added to session backdrops.`);
+  }, [showToast]);
+
+  const handleApplySpriteMarkup = useCallback((nextMarkup = spriteEditorMarkup) => {
+    if (!selectedSprite) {
+      return;
+    }
+
+    const trimmedMarkup = nextMarkup.trim();
+
+    if (!trimmedMarkup || !/<svg[\s>]/i.test(trimmedMarkup)) {
+      setSpriteEditorError('Enter valid SVG markup to update the sprite.');
+      return;
+    }
+
+    const normalizedMarkup = normalizeSvgMarkup(trimmedMarkup);
+    updateSpriteById(selectedSprite.id, (sprite) => ({
+      ...sprite,
+      svgMarkup: normalizedMarkup,
+    }));
+    setSpriteEditorMarkup(normalizedMarkup);
+    setSpriteEditorError('');
+    showToast(`${selectedSprite.name} sprite updated.`);
+  }, [selectedSprite, showToast, spriteEditorMarkup, updateSpriteById]);
+
+  const handleResetSpriteMarkup = useCallback(() => {
+    if (!selectedSprite) {
+      return;
+    }
+
+    void loadSvgMarkup(selectedSprite.src)
+      .then((markup) => {
+        updateSpriteById(selectedSprite.id, (sprite) => ({
+          ...sprite,
+          svgMarkup: null,
+        }));
+        setSpriteEditorMarkup(markup);
+        setSpriteEditorError('');
+        showToast(`${selectedSprite.name} sprite reset.`);
+      })
+      .catch(() => {
+        setSpriteEditorError('Unable to reload the original SVG source.');
+      });
+  }, [selectedSprite, showToast, updateSpriteById]);
+
+  const handleSelectedSpriteSizeChange = useCallback((nextSize) => {
+    if (!selectedSprite) {
+      return;
+    }
+
+    const normalizedSize = Math.max(10, Math.min(300, Number(nextSize) || 100));
+    updateSpriteById(selectedSprite.id, (sprite) => ({
+      ...sprite,
+      spriteState: {
+        ...sprite.spriteState,
+        size: normalizedSize,
+      },
+    }));
+  }, [selectedSprite, updateSpriteById]);
+
+  useEffect(() => {
+    if (selectedReplayBlockId && replayableBlocks.some((block) => block.id === selectedReplayBlockId)) {
+      return;
+    }
+
+    setSelectedReplayBlockId(replayableBlocks[0]?.id || '');
+  }, [replayableBlocks, selectedReplayBlockId]);
 
   const handleSidebarBlockChange = useCallback((id, action, value) => {
     setSidebarBlocks(prevBlocks => 
@@ -415,7 +1135,7 @@ const VisualCodeEditor = () => {
   const handleDrop = useCallback((item) => {
     if (item.isWorkspaceBlock) {
       if (item.parentId) {
-        setBlocks((prevBlocks) => {
+        updateSelectedSpriteBlocks((prevBlocks) => {
           const existingBlock = findBlockById(prevBlocks, item.id);
 
           if (!existingBlock) {
@@ -430,12 +1150,12 @@ const VisualCodeEditor = () => {
     }
 
     const newBlock = createWorkspaceBlock(item);
-    setBlocks((prevBlocks) => [...prevBlocks, newBlock]);
-    setHistory((prevHistory) => [...prevHistory, newBlock]);
-  }, []);
+    updateSelectedSpriteBlocks((prevBlocks) => [...prevBlocks, newBlock]);
+    setSelectedReplayBlockId((currentId) => currentId || newBlock.id);
+  }, [updateSelectedSpriteBlocks]);
 
   const moveBlock = useCallback((fromIndex, toIndex) => {
-    setBlocks((prevBlocks) => {
+    updateSelectedSpriteBlocks((prevBlocks) => {
       const nextBlocks = [...prevBlocks];
       const [movedBlock] = nextBlocks.splice(fromIndex, 1);
 
@@ -446,30 +1166,31 @@ const VisualCodeEditor = () => {
       nextBlocks.splice(toIndex, 0, movedBlock);
       return nextBlocks;
     });
-  }, []);
+  }, [updateSelectedSpriteBlocks]);
 
   const handleBlockChange = useCallback((id, action, value) => {
-    setBlocks((prevBlocks) =>
+    updateSelectedSpriteBlocks((prevBlocks) =>
       prevBlocks.map((block) =>
         block.id === id ? { ...block, value } : block
       )
     );
-  }, []);
+  }, [updateSelectedSpriteBlocks]);
 
   const handleNestedBlockChange = useCallback((id, action, value) => {
-    setBlocks((prevBlocks) => updateBlockValueById(prevBlocks, id, value));
-  }, []);
+    updateSelectedSpriteBlocks((prevBlocks) => updateBlockValueById(prevBlocks, id, value));
+  }, [updateSelectedSpriteBlocks]);
 
   const handleRemoveBlock = useCallback((id) => {
-    setBlocks((prevBlocks) => removeBlockById(prevBlocks, id));
-  }, []);
+    updateSelectedSpriteBlocks((prevBlocks) => removeBlockById(prevBlocks, id));
+    setSelectedReplayBlockId((currentId) => (currentId === id ? '' : currentId));
+  }, [updateSelectedSpriteBlocks]);
 
   const handleNestedDrop = useCallback((parentId, item, branchName = 'children') => {
     if (item.id === parentId || isEventTriggerAction(item.action) || isOperatorAction(item.action)) {
       return;
     }
 
-    setBlocks((prevBlocks) => {
+    updateSelectedSpriteBlocks((prevBlocks) => {
       const existingBlock = item.isWorkspaceBlock ? findBlockById(prevBlocks, item.id) : null;
       const childBlock = existingBlock
         ? { ...existingBlock, id: `${Date.now()}-${Math.random()}` }
@@ -481,18 +1202,18 @@ const VisualCodeEditor = () => {
 
       return appendChildBlock(blocksWithoutMovedBlock, parentId, childBlock, branchName);
     });
-  }, []);
+  }, [updateSelectedSpriteBlocks]);
 
   const handleOperatorSlotChange = useCallback((id, slotName, slotValue) => {
-    setBlocks((prevBlocks) => updateOperatorSlotById(prevBlocks, id, slotName, slotValue));
-  }, []);
+    updateSelectedSpriteBlocks((prevBlocks) => updateOperatorSlotById(prevBlocks, id, slotName, slotValue));
+  }, [updateSelectedSpriteBlocks]);
 
   const handleOperatorSlotDrop = useCallback((id, slotName, item) => {
     if (item.id === id || !isOperatorAction(item.action)) {
       return;
     }
 
-    setBlocks((prevBlocks) => {
+    updateSelectedSpriteBlocks((prevBlocks) => {
       const existingBlock = item.isWorkspaceBlock ? findBlockById(prevBlocks, item.id) : null;
       if (existingBlock && blockContainsId(existingBlock, id)) {
         return prevBlocks;
@@ -507,20 +1228,7 @@ const VisualCodeEditor = () => {
 
       return updateOperatorSlotById(blocksWithoutMovedBlock, id, slotName, slotBlock);
     });
-  }, []);
-
-  const showToast = useCallback((message) => {
-    setToastMessage(message);
-
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-    }
-
-    toastTimeoutRef.current = setTimeout(() => {
-      setToastMessage('');
-      toastTimeoutRef.current = null;
-    }, 2500);
-  }, []);
+  }, [updateSelectedSpriteBlocks]);
 
   const openVariableModal = useCallback(() => {
     setPendingVariableName('');
@@ -604,7 +1312,10 @@ const VisualCodeEditor = () => {
       return !(block.type === VARIABLES && block.action === actionTypes.LIST_REPORTER && block.value?.name === entityName);
     }));
 
-    setBlocks((prevBlocks) => removeVariableReporterBlocks(prevBlocks, entityType, entityName));
+    setSprites((prevSprites) => prevSprites.map((sprite) => ({
+      ...sprite,
+      blocks: removeVariableReporterBlocks(sprite.blocks || [], entityType, entityName),
+    })));
   }, []);
 
   const executeVariableAction = useCallback(async (block) => {
@@ -872,12 +1583,12 @@ const VisualCodeEditor = () => {
 
     spriteDragRef.current.hasMoved = true;
 
-    setSpriteState((prevState) => ({
+    setSelectedSpriteState((prevState) => ({
       ...prevState,
       x: nextPosition.x,
       y: nextPosition.y,
     }));
-  }, [getPointerSpritePosition]);
+  }, [getPointerSpritePosition, setSelectedSpriteState]);
 
   const handleSpritePointerUp = useCallback((event) => {
     if (!spriteDragRef.current.isDragging) return;
@@ -889,7 +1600,17 @@ const VisualCodeEditor = () => {
     }
   }, []);
 
-  const runBlockList = useCallback(async (blockList) => {
+  const runBlockListForSprite = useCallback(async (spriteId, blockList) => {
+    const setSpriteStateForId = (nextState) => updateSpriteById(spriteId, (sprite) => ({
+      ...sprite,
+      spriteState: typeof nextState === 'function' ? nextState(sprite.spriteState) : nextState,
+    }));
+    const setSpriteColorForId = (nextColor) => updateSpriteById(spriteId, (sprite) => ({
+      ...sprite,
+      color: typeof nextColor === 'function' ? nextColor(sprite.color) : nextColor,
+    }));
+    const setSpeechBubbleForId = (nextBubble) => setSpriteSpeechBubble(spriteId, nextBubble);
+
     for (const block of blockList) {
       if (isEventTriggerAction(block.action)) {
         continue;
@@ -904,43 +1625,82 @@ const VisualCodeEditor = () => {
           continue;
         }
         await executeVariableAction(block);
-        await pause(BLOCK_STEP_DELAY_MS);
+        if (shouldApplyStepDelay(block)) {
+          await pause(BLOCK_STEP_DELAY_MS);
+        }
         continue;
       }
 
       if (block.type === CONTROLS) {
-        await executeControlAction(block, runBlockList);
-        await pause(BLOCK_STEP_DELAY_MS);
+        await executeControlAction(block, (nestedBlocks) => runBlockListForSprite(spriteId, nestedBlocks));
+        if (shouldApplyStepDelay(block)) {
+          await pause(BLOCK_STEP_DELAY_MS);
+        }
         continue;
       }
 
-      await executeAction(block, sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume, setBroadcastMessage);
-      await pause(BLOCK_STEP_DELAY_MS);
+      await executeAction(
+        block,
+        sounds,
+        soundVolume,
+        activeAudiosRef,
+        setSpriteStateForId,
+        setSpeechBubbleForId,
+        setSpriteColorForId,
+        setBackdropValue,
+        setSoundVolume,
+        (message) => triggerBroadcastListenersRef.current(message)
+      );
+      if (shouldApplyStepDelay(block)) {
+        await pause(BLOCK_STEP_DELAY_MS);
+      }
     }
-  }, [executeAction, executeControlAction, executeVariableAction, sounds, soundVolume]);
+  }, [executeAction, executeControlAction, executeVariableAction, setSpriteSpeechBubble, sounds, soundVolume, updateSpriteById]);
 
-  const runMatchingEventBlocks = useCallback((predicate) => {
-    blocks
-      .filter((block) => isEventTriggerAction(block.action) && predicate(block))
-      .forEach((block) => {
-        void runBlockList(block.children || []);
-      });
-  }, [blocks, runBlockList]);
+  const runMatchingEventBlocks = useCallback((predicate, spritePredicate = () => true) => {
+    const eventRuns = spritesRef.current
+      .filter(spritePredicate)
+      .flatMap((sprite) => (
+        (sprite.blocks || [])
+          .filter((block) => isEventTriggerAction(block.action) && predicate(block))
+          .map((block) => runBlockListForSprite(sprite.id, block.children || []))
+      ));
+
+    return Promise.all(eventRuns);
+  }, [runBlockListForSprite]);
+
+  useEffect(() => {
+    triggerBroadcastListenersRef.current = (message) => {
+      const normalizedMessage = String(message || '').trim();
+
+      if (!normalizedMessage) {
+        return Promise.resolve();
+      }
+
+      return runMatchingEventBlocks((block) => (
+        block.action === actionTypes.WHEN_I_RECEIVE
+        && String(block.value || '').trim() === normalizedMessage
+      ));
+    };
+  }, [runMatchingEventBlocks]);
 
   const runCode = useCallback(async () => {
     if (isRunning) return;
-    setSpeechBubble({ message: '', isThinking: false });
-    setBroadcastMessage({ message: '', color: '#111111' });
+    clearAllSpriteSpeechBubbles();
     setIsRunning(true);
 
     try {
-      await runBlockList(blocks);
+      await Promise.all(
+        sprites.map((sprite) => runBlockListForSprite(
+          sprite.id,
+          (sprite.blocks || []).filter((block) => !isEventTriggerAction(block.action))
+        ))
+      );
     } finally {
       setIsRunning(false);
-      setSpeechBubble({ message: '', isThinking: false });
-      setBroadcastMessage({ message: '', color: '#111111' });
+      clearAllSpriteSpeechBubbles();
     }
-  }, [blocks, isRunning, runBlockList]);
+  }, [clearAllSpriteSpeechBubbles, isRunning, runBlockListForSprite, sprites]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -975,14 +1735,27 @@ const VisualCodeEditor = () => {
       return;
     }
 
-    runMatchingEventBlocks((block) => block.action === actionTypes.WHEN_SPRITE_CLICKED);
-  }, [runMatchingEventBlocks]);
+    runMatchingEventBlocks(
+      (block) => block.action === actionTypes.WHEN_SPRITE_CLICKED,
+      (sprite) => sprite.id === activeSpriteId
+    );
+  }, [activeSpriteId, runMatchingEventBlocks]);
 
-  const replayNthAction = useCallback((n) => {
-    if (n > 0 && n <= history.length) {
-      executeAction(history[n - 1], sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume, setBroadcastMessage);
+  const replaySelectedBlock = useCallback(async () => {
+    if (!selectedReplayBlock) {
+      showToast('Add a non-event block to replay.');
+      return;
     }
-  }, [history, executeAction, sounds, soundVolume]);
+
+    setIsRunning(true);
+
+    try {
+      await runBlockListForSprite(activeSpriteId, [selectedReplayBlock]);
+      showToast(`Replayed ${describeBlock(selectedReplayBlock)}.`);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [activeSpriteId, runBlockListForSprite, selectedReplayBlock, showToast]);
 
   const handleBackdropMenuAction = useCallback((id, action, onChange) => {
     pendingBackdropChangeRef.current = { id, action, onChange };
@@ -1000,30 +1773,36 @@ const VisualCodeEditor = () => {
       return;
     }
 
-    const uploadedBackdrop = {
-      id: `uploaded-backdrop-${Date.now()}`,
-      name: file.name || 'Uploaded image',
-      type: 'uploaded',
-      url: URL.createObjectURL(file),
-    };
     const pendingChange = pendingBackdropChangeRef.current;
+    const reader = new FileReader();
 
-    setUploadedBackdrops((prevBackdrops) => [...prevBackdrops, uploadedBackdrop]);
+    reader.onload = () => {
+      const uploadedBackdrop = {
+        id: `uploaded-backdrop-${Date.now()}`,
+        name: file.name || 'Uploaded image',
+        type: 'uploaded',
+        url: reader.result,
+      };
 
-    if (pendingChange) {
-      pendingChange.onChange(pendingChange.id, pendingChange.action, uploadedBackdrop.id);
-      pendingBackdropChangeRef.current = null;
-    }
+      setSessionBackdrops((prevBackdrops) => [...prevBackdrops, uploadedBackdrop]);
+
+      if (pendingChange) {
+        pendingChange.onChange(pendingChange.id, pendingChange.action, uploadedBackdrop.id);
+        pendingBackdropChangeRef.current = null;
+      }
+    };
+
+    reader.readAsDataURL(file);
   }, []);
 
   useEffect(() => {
-    uploadedBackdropsRef.current = uploadedBackdrops;
-  }, [uploadedBackdrops]);
+    sessionBackdropsRef.current = sessionBackdrops.filter((backdrop) => backdrop.type === 'uploaded');
+  }, [sessionBackdrops]);
 
   useEffect(() => {
     return () => {
-      uploadedBackdropsRef.current.forEach((backdrop) => {
-        if (backdrop.type === 'uploaded') {
+      sessionBackdropsRef.current.forEach((backdrop) => {
+        if (backdrop.type === 'uploaded' && String(backdrop.url).startsWith('blob:')) {
           URL.revokeObjectURL(backdrop.url);
         }
       });
@@ -1039,7 +1818,7 @@ const VisualCodeEditor = () => {
   ), []);
 
   useEffect(() => {
-    const hasUnsavedChanges = blocks.length > 0 || uploadedBackdrops.length > 0 || sounds.some(({ type }) => type === 'recorded');
+    const hasUnsavedChanges = sprites.some((sprite) => (sprite.blocks || []).length > 0) || sessionBackdrops.length > 1 || sounds.some(({ type }) => type === 'recorded');
 
     if (!hasUnsavedChanges) {
       return undefined;
@@ -1055,7 +1834,7 @@ const VisualCodeEditor = () => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [blocks.length, uploadedBackdrops.length, sounds]);
+  }, [sessionBackdrops.length, sounds, sprites]);
 
   const startSoundRecording = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
@@ -1153,30 +1932,136 @@ const VisualCodeEditor = () => {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="flex h-screen">
+      <div className="flex h-full min-h-0 flex-col">
+        <nav className="flex h-16 flex-shrink-0 items-center justify-between border-b border-sky-900/60 bg-gradient-to-r from-sky-600 via-blue-700 to-indigo-800 px-5 shadow-sm">
+          <div className="flex min-w-0 flex-wrap items-center gap-1">
+            <div ref={fileMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAssetsMenuOpen(false);
+                  setIsFileMenuOpen((open) => !open);
+                }}
+                className="flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+                aria-expanded={isFileMenuOpen}
+                aria-haspopup="menu"
+              >
+                <FileText size={16} />
+                File
+                <ChevronDown size={14} className={`transition ${isFileMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {isFileMenuOpen && (
+              <div className="absolute left-0 top-12 z-20 w-52 rounded-xl border border-sky-900/20 bg-white py-1.5 text-sm shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFileMenuOpen(false);
+                    void handleSaveProject();
+                  }}
+                  disabled={isProjectSaving}
+                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-gray-800 hover:bg-blue-50 ${isProjectSaving ? 'cursor-not-allowed opacity-50' : ''}`}
+                >
+                  <Save size={15} className="text-blue-600" />
+                  Save Project
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFileMenuOpen(false);
+                    handleLoadProject();
+                  }}
+                  disabled={isProjectLoading}
+                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-gray-800 hover:bg-blue-50 ${isProjectLoading ? 'cursor-not-allowed opacity-50' : ''}`}
+                >
+                  <Upload size={15} className="text-blue-600" />
+                  Load Project
+                </button>
+              </div>
+              )}
+            </div>
+            <div ref={assetsMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFileMenuOpen(false);
+                  setIsAssetsMenuOpen((open) => !open);
+                }}
+                className="flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+                aria-expanded={isAssetsMenuOpen}
+                aria-haspopup="menu"
+              >
+                <FolderOpen size={16} />
+                Assets
+                <ChevronDown size={14} className={`transition ${isAssetsMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {isAssetsMenuOpen && (
+                <div className="absolute left-0 top-12 z-20 w-56 rounded-xl border border-sky-900/20 bg-white py-1.5 text-sm shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAssetsMenuOpen(false);
+                      setIsSpriteLibraryOpen(true);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-gray-800 hover:bg-blue-50"
+                  >
+                    <Shapes size={15} className="text-orange-500" />
+                    Sprite Library
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAssetsMenuOpen(false);
+                      setIsBackdropLibraryOpen(true);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-gray-800 hover:bg-blue-50"
+                  >
+                    <ImageIcon size={15} className="text-emerald-600" />
+                    Backdrop Library
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          <h1 className="text-xl font-bold tracking-tight text-white">Visual Code Editor</h1>
+        </nav>
+      <div className="flex min-h-0 flex-1">
         {/* Sidebar */}
-        <div className="w-1/4 bg-gray-100 p-4 overflow-y-auto">
-          <div className="flex gap-2 mb-4">
+        <div className="flex w-1/4 flex-col bg-gray-100 p-4">
+          <div className="mb-4 overflow-x-auto pb-1">
+            <div className="inline-flex min-w-max rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
             <button
               onClick={() => setActiveSidebarTab('blocks')}
-              className={`px-3 py-2 rounded text-sm font-semibold ${
-                activeSidebarTab === 'blocks' ? 'bg-blue-500 text-white' : 'bg-white text-gray-700'
+              className={`flex-shrink-0 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                activeSidebarTab === 'blocks' ? 'bg-blue-500 text-white shadow-sm' : 'text-gray-700'
               }`}
             >
               Code
             </button>
             <button
               onClick={() => setActiveSidebarTab('sprite')}
-              className={`px-3 py-2 rounded text-sm font-semibold ${
-                activeSidebarTab === 'sprite' ? 'bg-orange-500 text-white' : 'bg-white text-gray-700'
+              className={`flex-shrink-0 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                activeSidebarTab === 'sprite' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-700'
               }`}
             >
               Sprite
             </button>
+            <button
+              onClick={() => setActiveSidebarTab('backdrops')}
+              className={`flex-shrink-0 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                activeSidebarTab === 'backdrops' ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-700'
+              }`}
+            >
+              Backdrops
+            </button>
+            </div>
           </div>
 
+          <div
+            className="overflow-y-auto pr-1"
+            style={{ height: EDITOR_PANEL_HEIGHT, minHeight: EDITOR_PANEL_HEIGHT }}
+          >
           {activeSidebarTab === 'blocks' && (
-            <>
+            <div className="h-full rounded-xl border border-gray-200 bg-white/70 p-3 shadow-sm">
               <h2 className="text-lg font-bold mb-2">Motion</h2>
               {sidebarBlocks.filter(block => block.type === MOTION).map((block) => (
                 <Block
@@ -1364,28 +2249,58 @@ const VisualCodeEditor = () => {
                   onDeleteVariableEntity={handleDeleteVariableEntity}
                 />
               ))}
-            </>
+            </div>
           )}
 
           {activeSidebarTab === 'sprite' && (
-            <>
+            <div className="rounded-xl border border-gray-200 bg-white/70 p-3 shadow-sm">
               <div className="grid grid-cols-1 gap-3 mb-4">
-                {DEFAULT_SPRITES.map((sprite) => (
-                  <button
+                <button
+                  type="button"
+                  onClick={() => setIsSpriteLibraryOpen(true)}
+                  className="flex min-h-[10rem] flex-col items-center justify-center rounded-xl border-2 border-dashed border-sky-300 bg-sky-50 text-sky-700 transition hover:border-sky-400 hover:bg-sky-100"
+                >
+                  <span className="text-4xl font-light leading-none">+</span>
+                  <span className="mt-2 text-sm font-semibold">Add Sprite</span>
+                </button>
+                {sprites.map((sprite) => (
+                  <div
                     key={sprite.id}
-                    type="button"
                     onClick={() => setSelectedSpriteId(sprite.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedSpriteId(sprite.id);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
                     className={`bg-white border p-2 rounded text-sm font-semibold ${
                       selectedSpriteId === sprite.id ? 'border-orange-500 ring-2 ring-orange-200' : 'border-gray-200'
                     }`}
                   >
-                    <div className="w-full h-28 mb-2 bg-gray-50 border rounded flex items-center justify-center overflow-hidden">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span>{sprite.name}</span>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleRemoveSprite(sprite.id);
+                        }}
+                        className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="w-full h-28 bg-gray-50 border rounded flex items-center justify-center overflow-hidden">
                       <div className="w-28 h-28">
-                        <CatSprite color={spriteColor} />
+                        <SpriteGraphic src={sprite.src} markup={sprite.svgMarkup} color={sprite.color} width="112" height="112" className="block" />
                       </div>
                     </div>
-                    {sprite.name}
-                  </button>
+                    <div className="mt-2 text-left text-xs text-gray-500">
+                      {(sprite.blocks || []).length} blocks in workspace
+                    </div>
+                  </div>
                 ))}
               </div>
               {sidebarBlocks.filter(block => block.type === SPRITE).map((block) => (
@@ -1407,110 +2322,389 @@ const VisualCodeEditor = () => {
                   onDeleteVariableEntity={handleDeleteVariableEntity}
                 />
               ))}
-            </>
+            </div>
           )}
+
+          {activeSidebarTab === 'backdrops' && (
+            <div className="rounded-xl border border-gray-200 bg-white/70 p-3 shadow-sm">
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsBackdropLibraryOpen(true)}
+                  className="flex min-h-[10rem] flex-col items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50 text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100"
+                >
+                  <span className="text-4xl font-light leading-none">+</span>
+                  <span className="mt-2 text-sm font-semibold">Add Backdrop</span>
+                </button>
+                {availableBackdrops.map((backdrop) => {
+                  const isActiveBackdrop = String(backdrop.id) === String(backdropValue);
+
+                  return (
+                    <button
+                      key={backdrop.id}
+                      type="button"
+                      onClick={() => handleSelectBackdrop(backdrop.id)}
+                      className={`overflow-hidden rounded-xl border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                        isActiveBackdrop ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-gray-200'
+                      }`}
+                    >
+                      <div
+                        className="flex h-28 items-center justify-center border-b bg-gray-50"
+                        style={{
+                          backgroundImage: backdrop.url ? `url(${backdrop.url})` : 'none',
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                        }}
+                      >
+                        {!backdrop.url && (
+                          <span className="text-sm font-semibold text-gray-500">White Space</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between gap-3 px-3 py-3">
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900">{backdrop.name}</div>
+                          <div className="text-xs text-gray-500">{isActiveBackdrop ? 'Current initial backdrop' : 'Click to set as initial'}</div>
+                        </div>
+                        {isActiveBackdrop && (
+                          <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          </div>
         </div>
 
         {/* Droppable Area */}
         <div className="w-3/6 p-4 h-[100%]">
-        <h1 className="text-xl font-bold mb-4 text-center">Workspace</h1>
+        <div className="mb-4 flex items-center justify-center gap-3">
+          <h1 className="text-xl font-bold">Workspace</h1>
+          {selectedSprite && (
+            <div className="flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 shadow-sm">
+              <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center overflow-hidden">
+                <SpriteGraphic src={selectedSprite.src} markup={selectedSprite.svgMarkup} color={selectedSprite.color} width="14" height="14" className="block" />
+              </div>
+              <span className="text-sm font-semibold text-orange-700">{selectedSprite.name}</span>
+            </div>
+          )}
+        </div>
         <p className="text-center mb-2 font-semibold">
-          Drag blocks into the center area and press "Run Code" to run your code.
+          {activeSidebarTab === 'sprite'
+            ? (selectedSprite ? `${selectedSprite.name} sprite editor. Update the SVG and apply it to this sprite.` : 'Add a sprite from the navbar to start building.')
+            : (selectedSprite ? `${selectedSprite.name} workspace. Drag blocks here and press Run Code.` : 'Add a sprite from the navbar to start building.')}
         </p>
-          <DroppableArea onDrop={handleDrop}>
-            {blocks.map((block, index) => (
-              <Block
-                key={block.id}
-                id={block.id}
-                index={index}
-                type={block.type}
-                action={block.action}
-                value={block.value}
-                childrenBlocks={block.children || []}
-                elseChildrenBlocks={block.elseChildren || []}
-                onChange={handleBlockChange}
-                onRemove={handleRemoveBlock}
-                moveBlock={moveBlock}
-                isWorkspaceBlock={true}
-                isDraggable={true}
-                availableSounds={sounds}
-                availableVariables={variableNames}
-                availableLists={listNames}
-                availableBackdrops={availableBackdrops}
-                isRecordingSound={isRecordingSound}
-                onSoundMenuAction={handleSoundMenuAction}
-                onBackdropMenuAction={handleBackdropMenuAction}
-                onNestedDrop={handleNestedDrop}
-                onNestedBlockChange={handleNestedBlockChange}
-                onNestedBlockRemove={handleRemoveBlock}
-                onOperatorSlotChange={handleOperatorSlotChange}
-                onOperatorSlotDrop={handleOperatorSlotDrop}
-                onOperatorValidationMessage={showToast}
-                onDeleteVariableEntity={handleDeleteVariableEntity}
+          {activeSidebarTab === 'sprite' ? (
+            selectedSprite ? (
+              <SpritePaintEditor
+                sprite={selectedSprite}
+                markup={spriteEditorMarkup || selectedSprite.svgMarkup || ''}
+                size={selectedSprite.spriteState?.size ?? 100}
+                loadError={spriteEditorError}
+                onApply={handleApplySpriteMarkup}
+                onReset={handleResetSpriteMarkup}
+                onSizeChange={handleSelectedSpriteSizeChange}
               />
-            ))}
-          </DroppableArea>
-          <div className="mt-4 flex justify-end space-x-2">
-            <button
-              onClick={runCode}
-              disabled={isRunning}
-              className={`bg-green-500 text-white p-2 rounded flex items-center ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <Play size={16} className="mr-1" /> Run Code
-            </button>
-            <button
-              onClick={() => replayNthAction(prompt('Enter action number to replay:'))}
-              className="bg-blue-500 text-white p-2 rounded flex items-center"
-            >
-              <Rewind size={16} className="mr-1" /> Replay Action
-            </button>
-            
-          </div>
+            ) : null
+          ) : (
+            <DroppableArea onDrop={handleDrop}>
+              {blocks.map((block, index) => (
+                <Block
+                  key={block.id}
+                  id={block.id}
+                  index={index}
+                  type={block.type}
+                  action={block.action}
+                  value={block.value}
+                  childrenBlocks={block.children || []}
+                  elseChildrenBlocks={block.elseChildren || []}
+                  onChange={handleBlockChange}
+                  onRemove={handleRemoveBlock}
+                  moveBlock={moveBlock}
+                  isWorkspaceBlock={true}
+                  isDraggable={true}
+                  availableSounds={sounds}
+                  availableVariables={variableNames}
+                  availableLists={listNames}
+                  availableBackdrops={availableBackdrops}
+                  isRecordingSound={isRecordingSound}
+                  onSoundMenuAction={handleSoundMenuAction}
+                  onBackdropMenuAction={handleBackdropMenuAction}
+                  onNestedDrop={handleNestedDrop}
+                  onNestedBlockChange={handleNestedBlockChange}
+                  onNestedBlockRemove={handleRemoveBlock}
+                  onOperatorSlotChange={handleOperatorSlotChange}
+                  onOperatorSlotDrop={handleOperatorSlotDrop}
+                  onOperatorValidationMessage={showToast}
+                  onDeleteVariableEntity={handleDeleteVariableEntity}
+                />
+              ))}
+            </DroppableArea>
+          )}
         </div>
 
         {/* Preview Area */}
-        <div className="w-3/6 p-4 border-l">
-        <h1 className="text-xl font-bold mb-4 text-center">Preview</h1>
-          <div ref={previewRef} className="border p-4 h-[600px] relative min-h-[600px] overflow-x-auto overflow-y-auto" style={{
-            backgroundColor: selectedBackdrop?.url ? undefined : 'white',
-            backgroundImage: selectedBackdrop?.url ? `url(${selectedBackdrop.url})` : 'none',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}>
-            {broadcastMessage.message && (
-              <div
-                className="absolute left-1/2 top-8 -translate-x-1/2 z-20 w-72 max-w-[80%] text-2xl font-bold text-center px-4 py-2 bg-white/80 rounded shadow whitespace-normal break-words"
-                style={{ color: broadcastMessage.color }}
-              >
-                {broadcastMessage.message}
-              </div>
-            )}
-            <div
-              ref={spriteRef}
-              className="w-24 h-24 absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 cursor-grab active:cursor-grabbing select-none"
-              onPointerDown={handleSpritePointerDown}
-              onPointerMove={handleSpritePointerMove}
-              onPointerUp={handleSpritePointerUp}
-              onPointerCancel={handleSpritePointerUp}
-              onClick={handleSpriteClick}
-              style={{
-                touchAction: 'none',
-                transform: `translate(${spriteState.x}px, ${spriteState.y}px) rotate(${spriteState.rotation + 90}deg) scale(${spriteState.size / 100})`,
-              }}
+        {!isPreviewExpanded && (
+        <div className="w-3/6 border-l p-4">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="w-24" />
+            <h1 className="text-xl font-bold text-center">Preview</h1>
+            <button
+              type="button"
+              onClick={() => setIsPreviewExpanded(true)}
+              className="rounded border border-gray-300 bg-white p-2 text-gray-800"
+              aria-label="Full screen preview"
+              title="Full screen"
             >
-              {speechBubble.message && (
-                <SpeechBubble message={speechBubble.message} isThinking={speechBubble.isThinking} />
-              )}
-              <CatSprite color={spriteColor} />
-            </div>
+              <Maximize2 size={16} />
+            </button>
+          </div>
+          <StagePreview
+            previewRef={previewRef}
+            spriteRef={spriteRef}
+            sprites={sprites}
+            selectedSpriteId={activeSpriteId}
+            selectedBackdrop={selectedBackdrop}
+            onSpritePointerDown={handleSpritePointerDown}
+            onSpritePointerMove={handleSpritePointerMove}
+            onSpritePointerUp={handleSpritePointerUp}
+            onSpriteClick={handleSpriteClick}
+            className="border p-4 relative overflow-x-auto overflow-y-auto rounded-xl"
+          />
+          <PreviewControls
+            isRunning={isRunning}
+            replayableBlocks={replayableBlocks}
+            selectedReplayBlock={selectedReplayBlock}
+            selectedReplayBlockId={selectedReplayBlockId}
+            setSelectedReplayBlockId={setSelectedReplayBlockId}
+            runCode={runCode}
+            replaySelectedBlock={replaySelectedBlock}
+          />
+        </div>
+        )}
+      </div>
+      {isPreviewExpanded && (
+        <div className="fixed inset-4 z-40 flex flex-col rounded-2xl bg-white shadow-2xl ring-1 ring-black/10">
+          <div className="flex h-16 flex-shrink-0 items-center justify-between border-b px-5">
+            <h1 className="text-lg font-bold">Preview</h1>
+            <button
+              type="button"
+              onClick={() => setIsPreviewExpanded(false)}
+              className="rounded bg-gray-900 p-2 text-white"
+              aria-label="Small screen preview"
+              title="Small screen"
+            >
+              <Minimize2 size={16} />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 p-5">
+            <StagePreview
+              previewRef={previewRef}
+              spriteRef={spriteRef}
+              sprites={sprites}
+              selectedSpriteId={activeSpriteId}
+              selectedBackdrop={selectedBackdrop}
+              onSpritePointerDown={handleSpritePointerDown}
+              onSpritePointerMove={handleSpritePointerMove}
+              onSpritePointerUp={handleSpritePointerUp}
+              onSpriteClick={handleSpriteClick}
+              panelHeight="calc(100vh - 11rem)"
+              className="relative overflow-x-auto overflow-y-auto rounded-xl border p-4"
+            />
+          </div>
+          <div className="flex-shrink-0 border-t px-5 py-4">
+            <PreviewControls
+              isRunning={isRunning}
+              replayableBlocks={replayableBlocks}
+              selectedReplayBlock={selectedReplayBlock}
+              selectedReplayBlockId={selectedReplayBlockId}
+              setSelectedReplayBlockId={setSelectedReplayBlockId}
+              runCode={runCode}
+              replaySelectedBlock={replaySelectedBlock}
+              compact
+            />
           </div>
         </div>
-      </div>
+      )}
+      {isSpriteLibraryOpen && (
+        <div className="fixed inset-0 z-40 bg-white">
+          <div className="flex h-16 items-center justify-between border-b px-6">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Sprite Library</h1>
+              <p className="text-sm text-gray-500">Choose a sprite to add to your project.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsSpriteLibraryOpen(false)}
+              className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Close
+            </button>
+          </div>
+          <div className="h-[calc(100vh-4rem)] overflow-y-auto px-6 py-6">
+            <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="relative w-full md:max-w-md">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={spriteLibrarySearch}
+                  onChange={(event) => setSpriteLibrarySearch(event.target.value)}
+                  placeholder="Search sprites"
+                  className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-800 shadow-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                {[
+                  { id: 'all', label: 'All' },
+                  { id: 'added', label: 'Added' },
+                  { id: 'not-added', label: 'Not Added' },
+                ].map((filterOption) => (
+                  <button
+                    key={filterOption.id}
+                    type="button"
+                    onClick={() => setSpriteLibraryFilter(filterOption.id)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      spriteLibraryFilter === filterOption.id ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {filterOption.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-6">
+              {filteredSpriteLibrary.map((librarySprite) => (
+                <button
+                  key={librarySprite.id}
+                  type="button"
+                  onClick={() => handleAddSprite(librarySprite)}
+                  className="rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md"
+                >
+                  <div className="mb-3 flex h-32 items-center justify-center rounded-xl bg-gray-50">
+                    <SpriteGraphic src={librarySprite.src} color={librarySprite.color} width="96" height="96" className="block" />
+                  </div>
+                  <div className="text-sm font-semibold text-gray-900">{librarySprite.name}</div>
+                </button>
+              ))}
+            </div>
+            {filteredSpriteLibrary.length === 0 && (
+              <div className="mt-8 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                No sprites match this search or filter.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {isBackdropLibraryOpen && (
+        <div className="fixed inset-0 z-40 bg-white">
+          <div className="flex h-16 items-center justify-between border-b px-6">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Backdrop Library</h1>
+              <p className="text-sm text-gray-500">Choose backdrops to add to the current session.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsBackdropLibraryOpen(false)}
+              className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Close
+            </button>
+          </div>
+          <div className="h-[calc(100vh-4rem)] overflow-y-auto px-6 py-6">
+            <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="relative w-full md:max-w-md">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={backdropLibrarySearch}
+                  onChange={(event) => setBackdropLibrarySearch(event.target.value)}
+                  placeholder="Search backdrops"
+                  className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-800 shadow-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                {[
+                  { id: 'all', label: 'All' },
+                  { id: 'added', label: 'Added' },
+                  { id: 'not-added', label: 'Not Added' },
+                ].map((filterOption) => (
+                  <button
+                    key={filterOption.id}
+                    type="button"
+                    onClick={() => setBackdropLibraryFilter(filterOption.id)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      backdropLibraryFilter === filterOption.id ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {filterOption.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+              {filteredBackdropLibrary.map((libraryBackdrop) => {
+                const isAdded = availableBackdrops.some((backdrop) => String(backdrop.id) === String(libraryBackdrop.id));
+
+                return (
+                  <button
+                    key={libraryBackdrop.id}
+                    type="button"
+                    onClick={() => handleAddBackdropToSession(libraryBackdrop)}
+                    className={`overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                      isAdded ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-gray-200 hover:border-emerald-300'
+                    }`}
+                  >
+                    <div
+                      className="flex h-40 items-center justify-center bg-gray-50"
+                      style={{
+                        backgroundImage: libraryBackdrop.url ? `url(${libraryBackdrop.url})` : 'none',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                      }}
+                    >
+                      {!libraryBackdrop.url && (
+                        <span className="text-sm font-semibold text-gray-500">White Space</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-3 px-4 py-3">
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">{libraryBackdrop.name}</div>
+                        <div className="text-xs text-gray-500">{isAdded ? 'Already in session' : 'Add to session'}</div>
+                      </div>
+                      {isAdded && (
+                        <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                          Added
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {filteredBackdropLibrary.length === 0 && (
+              <div className="mt-8 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                No backdrops match this search or filter.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <input
         ref={backdropFileInputRef}
         type="file"
         accept="image/*"
         onChange={handleBackdropUpload}
+        className="hidden"
+      />
+      <input
+        ref={projectFileInputRef}
+        type="file"
+        accept="application/json,.json"
+        onChange={handleProjectFileChange}
         className="hidden"
       />
       {toastMessage && (
@@ -1623,6 +2817,7 @@ const VisualCodeEditor = () => {
           </div>
         </div>
       )}
+      </div>
     </DndProvider>
   );
 };

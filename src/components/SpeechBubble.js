@@ -1,9 +1,9 @@
 import React from 'react';
 
 const SpeechBubble = ({ message, isThinking }) => (
-  <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-white border-2 border-black rounded-lg p-2 min-w-[100px] text-center">
+  <div className="absolute left-1/2 top-0 z-20 min-w-[100px] -translate-x-1/2 -translate-y-full -mt-3 rounded-lg border-2 border-black bg-white p-2 text-center shadow-sm">
     {message}
-    <div className={`absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 w-4 h-4 rotate-45 bg-white border-r-2 border-b-2 border-black ${isThinking ? 'rounded-full' : ''}`}></div>
+    <div className={`absolute bottom-0 left-1/2 h-4 w-4 -translate-x-1/2 translate-y-1/2 rotate-45 border-r-2 border-b-2 border-black bg-white ${isThinking ? 'rounded-full' : ''}`}></div>
   </div>
 );
 

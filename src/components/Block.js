@@ -1,13 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useDrag, useDrop } from 'react-dnd';
 import { CONTROLS, EVENTS, MOTION, OPERATORS, SOUND, SPRITE, VARIABLES } from '../constants/BlockTypes';
 import {
   MOVE_X, MOVE_Y, TURN_RIGHT, TURN_LEFT, GOTO, GOTO_RANDOM,
   POINT_IN_DIRECTION, POINT_TOWARDS_RANDOM, SAY, THINK,
   SAY_TIMER, THINK_TIMER, CHANGE_SIZE_TO, CHANGE_SIZE_BY,
-  CHANGE_COLOR, CHANGE_BACKDROP, HIDE, SHOW, PLAY_SOUND, SET_VOLUME, CHANGE_VOLUME_BY, CLEAR_ALL_SOUNDS, WHEN_KEY_PRESSED, WHEN_SPRITE_CLICKED, WHEN_BACKDROP_SWITCHES_TO, WHEN_LOUDNESS_GREATER_THAN, BROADCAST_MESSAGE_FOR, WAIT_SECONDS, REPEAT_TIMES, FOREVER, IF_THEN, IF_THEN_ELSE, WAIT_UNTIL, REPEAT_UNTIL, OPERATOR_ADD, OPERATOR_SUBTRACT, OPERATOR_MULTIPLY, OPERATOR_DIVIDE, OPERATOR_MODULO, OPERATOR_LESS_THAN, OPERATOR_EQUALS, OPERATOR_GREATER_THAN, OPERATOR_AND, OPERATOR_OR, OPERATOR_NOT, OPERATOR_JOIN, OPERATOR_LETTER_OF, OPERATOR_LENGTH_OF, OPERATOR_CONTAINS, OPERATOR_MATH_FUNCTION, OPERATOR_PICK_RANDOM, VARIABLE_REPORTER, LIST_REPORTER, SET_VARIABLE_TO, CHANGE_VARIABLE_BY, ADD_TO_LIST, DELETE_FROM_LIST, DELETE_ALL_OF_LIST, INSERT_AT_LIST, REPLACE_ITEM_IN_LIST
+  CHANGE_COLOR, CHANGE_BACKDROP, HIDE, SHOW, PLAY_SOUND, SET_VOLUME, CHANGE_VOLUME_BY, CLEAR_ALL_SOUNDS, WHEN_KEY_PRESSED, WHEN_SPRITE_CLICKED, WHEN_BACKDROP_SWITCHES_TO, WHEN_LOUDNESS_GREATER_THAN, WHEN_I_RECEIVE, BROADCAST_MESSAGE_FOR, WAIT_SECONDS, REPEAT_TIMES, FOREVER, IF_THEN, IF_THEN_ELSE, WAIT_UNTIL, REPEAT_UNTIL, OPERATOR_ADD, OPERATOR_SUBTRACT, OPERATOR_MULTIPLY, OPERATOR_DIVIDE, OPERATOR_MODULO, OPERATOR_LESS_THAN, OPERATOR_EQUALS, OPERATOR_GREATER_THAN, OPERATOR_AND, OPERATOR_OR, OPERATOR_NOT, OPERATOR_JOIN, OPERATOR_LETTER_OF, OPERATOR_LENGTH_OF, OPERATOR_CONTAINS, OPERATOR_MATH_FUNCTION, OPERATOR_PICK_RANDOM, VARIABLE_REPORTER, LIST_REPORTER, SET_VARIABLE_TO, CHANGE_VARIABLE_BY, ADD_TO_LIST, DELETE_FROM_LIST, DELETE_ALL_OF_LIST, INSERT_AT_LIST, REPLACE_ITEM_IN_LIST
 } from '../constants/ActionTypes';
-import { BACKDROPS } from '../data/BackDrops';
 
 const KEY_OPTIONS = [
   { value: 'Space', label: 'space' },
@@ -34,6 +34,7 @@ const EVENT_TRIGGER_ACTIONS = [
   WHEN_SPRITE_CLICKED,
   WHEN_BACKDROP_SWITCHES_TO,
   WHEN_LOUDNESS_GREATER_THAN,
+  WHEN_I_RECEIVE,
 ];
 const CONTROL_CONTAINER_ACTIONS = [
   REPEAT_TIMES,
@@ -64,6 +65,7 @@ const OPERATOR_ACTIONS = [
 const OPERATOR_NUMBER_MIN = -1000000;
 const OPERATOR_NUMBER_MAX = 1000000;
 const MATH_FUNCTION_OPTIONS = ['abs', 'floor', 'ceiling', 'sqrt', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'ln', 'log', 'e^', '10^'];
+const DROPDOWN_MENU_MAX_HEIGHT = 176;
 
 const isOperatorBlockValue = (slotValue) => (
   slotValue && typeof slotValue === 'object' && slotValue.type === OPERATORS
@@ -74,6 +76,68 @@ const getOperatorInputWidth = (slotValue, compact, minCharsOverride) => {
   const maxChars = compact ? 12 : 16;
   const nextChars = String(slotValue ?? '').length || minChars;
   return `${Math.min(maxChars, Math.max(minChars, nextChars + 1))}ch`;
+};
+
+const BlockDropdownMenu = ({ isOpen, triggerRef, width = 128, children }) => {
+  const [menuStyle, setMenuStyle] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!isOpen || !triggerRef.current) {
+      setMenuStyle(null);
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const triggerRect = triggerRef.current.getBoundingClientRect();
+      const menuWidth = Math.max(width, triggerRect.width);
+      const viewportPadding = 8;
+      const gap = 8;
+      const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
+      const spaceAbove = triggerRect.top - viewportPadding;
+      const opensBelow = spaceBelow >= Math.min(DROPDOWN_MENU_MAX_HEIGHT, spaceAbove);
+      const left = Math.min(
+        window.innerWidth - menuWidth - viewportPadding,
+        Math.max(viewportPadding, triggerRect.left)
+      );
+      const top = opensBelow
+        ? triggerRect.bottom + gap
+        : Math.max(viewportPadding, triggerRect.top - DROPDOWN_MENU_MAX_HEIGHT - gap);
+
+      setMenuStyle({
+        left,
+        top,
+        width: menuWidth,
+        maxHeight: Math.max(80, Math.min(DROPDOWN_MENU_MAX_HEIGHT, opensBelow ? spaceBelow - gap : spaceAbove - gap)),
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [isOpen, triggerRef, width]);
+
+  if (!isOpen || !menuStyle) {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      data-block-dropdown-menu="true"
+      className="fixed overflow-y-auto bg-white text-black rounded shadow-2xl border border-gray-200 z-[9999]"
+      style={menuStyle}
+      onPointerDown={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+      onTouchStart={(event) => event.stopPropagation()}
+    >
+      {children}
+    </div>,
+    document.body
+  );
 };
 
 const OperatorSlot = ({
@@ -197,7 +261,7 @@ const Block = ({
   availableSounds = [],
   availableVariables = [],
   availableLists = [],
-  availableBackdrops = BACKDROPS.map((backdrop, index) => ({ ...backdrop, id: String(index) })),
+  availableBackdrops = [],
   isRecordingSound = false,
   onSoundMenuAction,
   onBackdropMenuAction,
@@ -213,6 +277,12 @@ const Block = ({
   const blockRef = useRef(null);
   const nestedDropRef = useRef(null);
   const elseNestedDropRef = useRef(null);
+  const keyMenuTriggerRef = useRef(null);
+  const backdropMenuTriggerRef = useRef(null);
+  const soundMenuTriggerRef = useRef(null);
+  const mathMenuTriggerRef = useRef(null);
+  const variableMenuTriggerRefs = useRef({});
+  const listMenuTriggerRefs = useRef({});
   const [isKeyMenuOpen, setIsKeyMenuOpen] = useState(false);
   const [isBackdropMenuOpen, setIsBackdropMenuOpen] = useState(false);
   const [isSoundMenuOpen, setIsSoundMenuOpen] = useState(false);
@@ -320,7 +390,10 @@ const Block = ({
     }
 
     const closeMenusOnOutsideClick = (event) => {
-      if (blockRef.current?.contains(event.target)) {
+      if (
+        blockRef.current?.contains(event.target)
+        || event.target.closest?.('[data-block-dropdown-menu="true"]')
+      ) {
         return;
       }
 
@@ -389,12 +462,9 @@ const Block = ({
     } else if (action === SAY_TIMER || action === THINK_TIMER) {
       newValue = { ...value, [field]: field === 'duration' ? parseInt(e.target.value, 10) : e.target.value };
     } else if (action === BROADCAST_MESSAGE_FOR) {
-      newValue = {
-        ...value,
-        [field]: field === 'duration'
-          ? (e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value)))
-          : e.target.value,
-      };
+      newValue = e.target.value;
+    } else if (action === WHEN_I_RECEIVE) {
+      newValue = e.target.value;
     } else {
       if (action === SET_VOLUME) {
         newValue = e.target.value === ''
@@ -604,28 +674,23 @@ const Block = ({
           <>
             <input
               type="text"
-              value={value.message}
-              onChange={(e) => handleInputChange(e, 'message')}
-              className="w-16 p-1 text-black rounded-full mr-1"
+              value={typeof value === 'object' ? (value.message || '') : value}
+              onChange={handleInputChange}
+              className="w-24 p-1 text-black rounded-full mr-1"
               placeholder="message"
               style={{ fontSize: '0.75rem' }}
             />
-            <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>for</span>
+          </>
+        )}
+        {action === WHEN_I_RECEIVE && (
+          <>
+            <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>I receive</span>
             <input
-              type="number"
-              min={0}
-              value={value.duration}
-              onChange={(e) => handleInputChange(e, 'duration')}
-              className="w-12 p-1 text-black rounded-full"
-              placeholder="sec"
-              style={{ fontSize: '0.75rem' }}
-            />
-            <span className="mx-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>sec</span>
-            <input
-              type="color"
-              value={value.color}
-              onChange={(e) => handleInputChange(e, 'color')}
-              className="w-6 h-6 p-0 border-0 flex-shrink-0"
+              type="text"
+              value={value}
+              onChange={handleInputChange}
+              className="w-20 p-1 text-black rounded-full"
+              placeholder="message"
               style={{ fontSize: '0.75rem' }}
             />
           </>
@@ -639,6 +704,7 @@ const Block = ({
               onTouchStart={stopControlDrag}
             >
               <button
+                ref={keyMenuTriggerRef}
                 type="button"
                 onClick={() => setIsKeyMenuOpen((isOpen) => !isOpen)}
                 className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
@@ -647,23 +713,21 @@ const Block = ({
                 <span className="truncate">{selectedKeyOption.label}</span>
                 <span className="ml-2 text-gray-600">v</span>
               </button>
-              {isKeyMenuOpen && (
-                <div className="absolute left-0 bottom-full mb-2 w-36 max-h-44 overflow-y-auto bg-white text-black rounded shadow-2xl border border-gray-200 z-50 transform -translate-y-1">
-                  {KEY_OPTIONS.map((keyOption) => (
-                    <button
-                      type="button"
-                      key={keyOption.value}
-                      onClick={() => handleKeyOptionSelect(keyOption.value)}
-                      className={`block w-full text-left px-3 py-2 hover:bg-yellow-100 ${
-                        keyOption.value === value ? 'bg-yellow-200 font-semibold' : ''
-                      }`}
-                      style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
-                    >
-                      {keyOption.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <BlockDropdownMenu isOpen={isKeyMenuOpen} triggerRef={keyMenuTriggerRef} width={144}>
+                {KEY_OPTIONS.map((keyOption) => (
+                  <button
+                    type="button"
+                    key={keyOption.value}
+                    onClick={() => handleKeyOptionSelect(keyOption.value)}
+                    className={`block w-full text-left px-3 py-2 hover:bg-yellow-100 ${
+                      keyOption.value === value ? 'bg-yellow-200 font-semibold' : ''
+                    }`}
+                    style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
+                  >
+                    {keyOption.label}
+                  </button>
+                ))}
+              </BlockDropdownMenu>
             </div>
             <span className="ml-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>key pressed</span>
           </>
@@ -741,6 +805,7 @@ const Block = ({
             onTouchStart={stopControlDrag}
           >
             <button
+              ref={backdropMenuTriggerRef}
               type="button"
               onClick={() => setIsBackdropMenuOpen((isOpen) => !isOpen)}
               className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
@@ -749,33 +814,31 @@ const Block = ({
               <span className="truncate">{selectedBackdropOption?.name || 'Backdrop'}</span>
               <span className="ml-2 text-gray-600">v</span>
             </button>
-            {isBackdropMenuOpen && (
-              <div className="absolute left-0 bottom-full mb-2 w-44 max-h-44 overflow-y-auto bg-white text-black rounded shadow-2xl border border-gray-200 z-50 transform -translate-y-1">
-                {availableBackdrops.map((backdrop) => (
-                  <button
-                    type="button"
-                    key={backdrop.id}
-                    onClick={() => handleBackdropOptionSelect(backdrop.id)}
-                    className={`block w-full text-left px-3 py-2 hover:bg-purple-100 ${
-                      String(backdrop.id) === String(value) ? 'bg-purple-200 font-semibold' : ''
-                    }`}
-                    style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
-                  >
-                    {backdrop.name}
-                  </button>
-                ))}
-                {action === CHANGE_BACKDROP && (
-                  <button
-                    type="button"
-                    onClick={() => handleBackdropOptionSelect(UPLOAD_BACKDROP_OPTION)}
-                    className="block w-full text-left px-3 py-2 hover:bg-purple-100 border-t border-gray-200"
-                    style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
-                  >
-                    Upload image
-                  </button>
-                )}
-              </div>
-            )}
+            <BlockDropdownMenu isOpen={isBackdropMenuOpen} triggerRef={backdropMenuTriggerRef} width={176}>
+              {availableBackdrops.map((backdrop) => (
+                <button
+                  type="button"
+                  key={backdrop.id}
+                  onClick={() => handleBackdropOptionSelect(backdrop.id)}
+                  className={`block w-full text-left px-3 py-2 hover:bg-purple-100 ${
+                    String(backdrop.id) === String(value) ? 'bg-purple-200 font-semibold' : ''
+                  }`}
+                  style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
+                >
+                  {backdrop.name}
+                </button>
+              ))}
+              {action === CHANGE_BACKDROP && (
+                <button
+                  type="button"
+                  onClick={() => handleBackdropOptionSelect(UPLOAD_BACKDROP_OPTION)}
+                  className="block w-full text-left px-3 py-2 hover:bg-purple-100 border-t border-gray-200"
+                  style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
+                >
+                  Upload image
+                </button>
+              )}
+            </BlockDropdownMenu>
           </div>
         )}
         {action === WHEN_BACKDROP_SWITCHES_TO && (
@@ -789,6 +852,7 @@ const Block = ({
             onTouchStart={stopControlDrag}
           >
             <button
+              ref={soundMenuTriggerRef}
               type="button"
               onClick={() => setIsSoundMenuOpen((isOpen) => !isOpen)}
               className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
@@ -797,31 +861,29 @@ const Block = ({
               <span className="truncate">{selectedSoundOption?.name || 'Sound'}</span>
               <span className="ml-2 text-gray-600">v</span>
             </button>
-            {isSoundMenuOpen && (
-              <div className="absolute left-0 bottom-full mb-2 w-44 max-h-44 overflow-y-auto bg-white text-black rounded shadow-2xl border border-gray-200 z-50 transform -translate-y-1">
-                {availableSounds.map((sound) => (
-                  <button
-                    type="button"
-                    key={sound.id}
-                    onClick={() => handleSoundOptionSelect(sound.id)}
-                    className={`block w-full text-left px-3 py-2 hover:bg-pink-100 ${
-                      sound.id === value ? 'bg-pink-200 font-semibold' : ''
-                    }`}
-                    style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
-                  >
-                    {sound.name}
-                  </button>
-                ))}
+            <BlockDropdownMenu isOpen={isSoundMenuOpen} triggerRef={soundMenuTriggerRef} width={176}>
+              {availableSounds.map((sound) => (
                 <button
                   type="button"
-                  onClick={() => handleSoundOptionSelect(RECORD_SOUND_OPTION)}
-                  className="block w-full text-left px-3 py-2 hover:bg-pink-100 border-t border-gray-200"
+                  key={sound.id}
+                  onClick={() => handleSoundOptionSelect(sound.id)}
+                  className={`block w-full text-left px-3 py-2 hover:bg-pink-100 ${
+                    sound.id === value ? 'bg-pink-200 font-semibold' : ''
+                  }`}
                   style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
                 >
-                  Record new sound
+                  {sound.name}
                 </button>
-              </div>
-            )}
+              ))}
+              <button
+                type="button"
+                onClick={() => handleSoundOptionSelect(RECORD_SOUND_OPTION)}
+                className="block w-full text-left px-3 py-2 hover:bg-pink-100 border-t border-gray-200"
+                style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
+              >
+                Record new sound
+              </button>
+            </BlockDropdownMenu>
           </div>
         )}
         {type === VARIABLES && action === VARIABLE_REPORTER && (
@@ -858,6 +920,9 @@ const Block = ({
               onTouchStart={stopControlDrag}
             >
               <button
+                ref={(node) => {
+                  variableMenuTriggerRefs.current['set-variable'] = node;
+                }}
                 type="button"
                 onClick={() => setActiveVariableMenu((current) => current === 'set-variable' ? null : 'set-variable')}
                 className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm mr-1"
@@ -866,23 +931,21 @@ const Block = ({
                 <span className="truncate">{selectedVariableName || 'variable'}</span>
                 <span className="ml-2 text-gray-600">v</span>
               </button>
-              {activeVariableMenu === 'set-variable' && (
-                <div className="absolute left-0 bottom-full mb-2 w-32 max-h-44 overflow-y-auto bg-white text-black rounded shadow-2xl border border-gray-200 z-50 transform -translate-y-1">
-                  {availableVariables.map((variableName) => (
-                    <button
-                      type="button"
-                      key={variableName}
-                      onClick={() => handleVariableOptionSelect('variableName', variableName)}
-                      className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
-                        variableName === selectedVariableName ? 'bg-orange-200 font-semibold' : ''
-                      }`}
-                      style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
-                    >
-                      {variableName}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <BlockDropdownMenu isOpen={activeVariableMenu === 'set-variable'} triggerRef={{ current: variableMenuTriggerRefs.current['set-variable'] }} width={176}>
+                {availableVariables.map((variableName) => (
+                  <button
+                    type="button"
+                    key={variableName}
+                    onClick={() => handleVariableOptionSelect('variableName', variableName)}
+                    className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
+                      variableName === selectedVariableName ? 'bg-orange-200 font-semibold' : ''
+                    }`}
+                    style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
+                  >
+                    {variableName}
+                  </button>
+                ))}
+              </BlockDropdownMenu>
             </div>
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>to</span>
             <input
@@ -904,6 +967,9 @@ const Block = ({
               onTouchStart={stopControlDrag}
             >
               <button
+                ref={(node) => {
+                  variableMenuTriggerRefs.current['change-variable'] = node;
+                }}
                 type="button"
                 onClick={() => setActiveVariableMenu((current) => current === 'change-variable' ? null : 'change-variable')}
                 className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm mr-1"
@@ -912,23 +978,21 @@ const Block = ({
                 <span className="truncate">{selectedVariableName || 'variable'}</span>
                 <span className="ml-2 text-gray-600">v</span>
               </button>
-              {activeVariableMenu === 'change-variable' && (
-                <div className="absolute left-0 bottom-full mb-2 w-32 max-h-44 overflow-y-auto bg-white text-black rounded shadow-2xl border border-gray-200 z-50 transform -translate-y-1">
-                  {availableVariables.map((variableName) => (
-                    <button
-                      type="button"
-                      key={variableName}
-                      onClick={() => handleVariableOptionSelect('variableName', variableName)}
-                      className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
-                        variableName === selectedVariableName ? 'bg-orange-200 font-semibold' : ''
-                      }`}
-                      style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
-                    >
-                      {variableName}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <BlockDropdownMenu isOpen={activeVariableMenu === 'change-variable'} triggerRef={{ current: variableMenuTriggerRefs.current['change-variable'] }} width={176}>
+                {availableVariables.map((variableName) => (
+                  <button
+                    type="button"
+                    key={variableName}
+                    onClick={() => handleVariableOptionSelect('variableName', variableName)}
+                    className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
+                      variableName === selectedVariableName ? 'bg-orange-200 font-semibold' : ''
+                    }`}
+                    style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
+                  >
+                    {variableName}
+                  </button>
+                ))}
+              </BlockDropdownMenu>
             </div>
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>by</span>
             <input
@@ -958,6 +1022,9 @@ const Block = ({
               onTouchStart={stopControlDrag}
             >
               <button
+                ref={(node) => {
+                  listMenuTriggerRefs.current['add-to-list'] = node;
+                }}
                 type="button"
                 onClick={() => setActiveListMenu((current) => current === 'add-to-list' ? null : 'add-to-list')}
                 className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
@@ -966,23 +1033,21 @@ const Block = ({
                 <span className="truncate">{selectedListName || 'list'}</span>
                 <span className="ml-2 text-gray-600">v</span>
               </button>
-              {activeListMenu === 'add-to-list' && (
-                <div className="absolute left-0 bottom-full mb-2 w-32 max-h-44 overflow-y-auto bg-white text-black rounded shadow-2xl border border-gray-200 z-50 transform -translate-y-1">
-                  {availableLists.map((listName) => (
-                    <button
-                      type="button"
-                      key={listName}
-                      onClick={() => handleListOptionSelect('listName', listName)}
-                      className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
-                        listName === selectedListName ? 'bg-orange-200 font-semibold' : ''
-                      }`}
-                      style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
-                    >
-                      {listName}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <BlockDropdownMenu isOpen={activeListMenu === 'add-to-list'} triggerRef={{ current: listMenuTriggerRefs.current['add-to-list'] }} width={176}>
+                {availableLists.map((listName) => (
+                  <button
+                    type="button"
+                    key={listName}
+                    onClick={() => handleListOptionSelect('listName', listName)}
+                    className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
+                      listName === selectedListName ? 'bg-orange-200 font-semibold' : ''
+                    }`}
+                    style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
+                  >
+                    {listName}
+                  </button>
+                ))}
+              </BlockDropdownMenu>
             </div>
           </>
         )}
@@ -1004,6 +1069,9 @@ const Block = ({
               onTouchStart={stopControlDrag}
             >
               <button
+                ref={(node) => {
+                  listMenuTriggerRefs.current['delete-from-list'] = node;
+                }}
                 type="button"
                 onClick={() => setActiveListMenu((current) => current === 'delete-from-list' ? null : 'delete-from-list')}
                 className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
@@ -1012,23 +1080,21 @@ const Block = ({
                 <span className="truncate">{selectedListName || 'list'}</span>
                 <span className="ml-2 text-gray-600">v</span>
               </button>
-              {activeListMenu === 'delete-from-list' && (
-                <div className="absolute left-0 bottom-full mb-2 w-32 max-h-44 overflow-y-auto bg-white text-black rounded shadow-2xl border border-gray-200 z-50 transform -translate-y-1">
-                  {availableLists.map((listName) => (
-                    <button
-                      type="button"
-                      key={listName}
-                      onClick={() => handleListOptionSelect('listName', listName)}
-                      className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
-                        listName === selectedListName ? 'bg-orange-200 font-semibold' : ''
-                      }`}
-                      style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
-                    >
-                      {listName}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <BlockDropdownMenu isOpen={activeListMenu === 'delete-from-list'} triggerRef={{ current: listMenuTriggerRefs.current['delete-from-list'] }} width={176}>
+                {availableLists.map((listName) => (
+                  <button
+                    type="button"
+                    key={listName}
+                    onClick={() => handleListOptionSelect('listName', listName)}
+                    className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
+                      listName === selectedListName ? 'bg-orange-200 font-semibold' : ''
+                    }`}
+                    style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
+                  >
+                    {listName}
+                  </button>
+                ))}
+              </BlockDropdownMenu>
             </div>
           </>
         )}
@@ -1042,6 +1108,9 @@ const Block = ({
               onTouchStart={stopControlDrag}
             >
               <button
+                ref={(node) => {
+                  listMenuTriggerRefs.current['delete-all-of-list'] = node;
+                }}
                 type="button"
                 onClick={() => setActiveListMenu((current) => current === 'delete-all-of-list' ? null : 'delete-all-of-list')}
                 className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
@@ -1050,23 +1119,21 @@ const Block = ({
                 <span className="truncate">{selectedListName || 'list'}</span>
                 <span className="ml-2 text-gray-600">v</span>
               </button>
-              {activeListMenu === 'delete-all-of-list' && (
-                <div className="absolute left-0 bottom-full mb-2 w-32 max-h-44 overflow-y-auto bg-white text-black rounded shadow-2xl border border-gray-200 z-50 transform -translate-y-1">
-                  {availableLists.map((listName) => (
-                    <button
-                      type="button"
-                      key={listName}
-                      onClick={() => handleListOptionSelect('listName', listName)}
-                      className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
-                        listName === selectedListName ? 'bg-orange-200 font-semibold' : ''
-                      }`}
-                      style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
-                    >
-                      {listName}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <BlockDropdownMenu isOpen={activeListMenu === 'delete-all-of-list'} triggerRef={{ current: listMenuTriggerRefs.current['delete-all-of-list'] }} width={176}>
+                {availableLists.map((listName) => (
+                  <button
+                    type="button"
+                    key={listName}
+                    onClick={() => handleListOptionSelect('listName', listName)}
+                    className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
+                      listName === selectedListName ? 'bg-orange-200 font-semibold' : ''
+                    }`}
+                    style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
+                  >
+                    {listName}
+                  </button>
+                ))}
+              </BlockDropdownMenu>
             </div>
           </>
         )}
@@ -1096,6 +1163,9 @@ const Block = ({
               onTouchStart={stopControlDrag}
             >
               <button
+                ref={(node) => {
+                  listMenuTriggerRefs.current['insert-at-list'] = node;
+                }}
                 type="button"
                 onClick={() => setActiveListMenu((current) => current === 'insert-at-list' ? null : 'insert-at-list')}
                 className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
@@ -1104,23 +1174,21 @@ const Block = ({
                 <span className="truncate">{selectedListName || 'list'}</span>
                 <span className="ml-2 text-gray-600">v</span>
               </button>
-              {activeListMenu === 'insert-at-list' && (
-                <div className="absolute left-0 bottom-full mb-2 w-32 max-h-44 overflow-y-auto bg-white text-black rounded shadow-2xl border border-gray-200 z-50 transform -translate-y-1">
-                  {availableLists.map((listName) => (
-                    <button
-                      type="button"
-                      key={listName}
-                      onClick={() => handleListOptionSelect('listName', listName)}
-                      className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
-                        listName === selectedListName ? 'bg-orange-200 font-semibold' : ''
-                      }`}
-                      style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
-                    >
-                      {listName}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <BlockDropdownMenu isOpen={activeListMenu === 'insert-at-list'} triggerRef={{ current: listMenuTriggerRefs.current['insert-at-list'] }} width={176}>
+                {availableLists.map((listName) => (
+                  <button
+                    type="button"
+                    key={listName}
+                    onClick={() => handleListOptionSelect('listName', listName)}
+                    className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
+                      listName === selectedListName ? 'bg-orange-200 font-semibold' : ''
+                    }`}
+                    style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
+                  >
+                    {listName}
+                  </button>
+                ))}
+              </BlockDropdownMenu>
             </div>
           </>
         )}
@@ -1142,6 +1210,9 @@ const Block = ({
               onTouchStart={stopControlDrag}
             >
               <button
+                ref={(node) => {
+                  listMenuTriggerRefs.current['replace-item-in-list'] = node;
+                }}
                 type="button"
                 onClick={() => setActiveListMenu((current) => current === 'replace-item-in-list' ? null : 'replace-item-in-list')}
                 className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm mr-1"
@@ -1150,23 +1221,21 @@ const Block = ({
                 <span className="truncate">{selectedListName || 'list'}</span>
                 <span className="ml-2 text-gray-600">v</span>
               </button>
-              {activeListMenu === 'replace-item-in-list' && (
-                <div className="absolute left-0 bottom-full mb-2 w-32 max-h-44 overflow-y-auto bg-white text-black rounded shadow-2xl border border-gray-200 z-50 transform -translate-y-1">
-                  {availableLists.map((listName) => (
-                    <button
-                      type="button"
-                      key={listName}
-                      onClick={() => handleListOptionSelect('listName', listName)}
-                      className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
-                        listName === selectedListName ? 'bg-orange-200 font-semibold' : ''
-                      }`}
-                      style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
-                    >
-                      {listName}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <BlockDropdownMenu isOpen={activeListMenu === 'replace-item-in-list'} triggerRef={{ current: listMenuTriggerRefs.current['replace-item-in-list'] }} width={176}>
+                {availableLists.map((listName) => (
+                  <button
+                    type="button"
+                    key={listName}
+                    onClick={() => handleListOptionSelect('listName', listName)}
+                    className={`block w-full text-left px-3 py-2 hover:bg-orange-100 ${
+                      listName === selectedListName ? 'bg-orange-200 font-semibold' : ''
+                    }`}
+                    style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
+                  >
+                    {listName}
+                  </button>
+                ))}
+              </BlockDropdownMenu>
             </div>
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>with</span>
             <input
@@ -1555,6 +1624,7 @@ const Block = ({
               onTouchStart={stopControlDrag}
             >
               <button
+                ref={mathMenuTriggerRef}
                 type="button"
                 onClick={() => setIsMathMenuOpen((isOpen) => !isOpen)}
                 className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm mr-1"
@@ -1563,23 +1633,21 @@ const Block = ({
                 <span className="truncate">{value.fn}</span>
                 <span className="ml-2 text-gray-600">v</span>
               </button>
-              {isMathMenuOpen && (
-                <div className="absolute left-0 bottom-full mb-2 w-24 max-h-44 overflow-y-auto bg-white text-black rounded shadow-2xl border border-gray-200 z-50 transform -translate-y-1">
-                  {MATH_FUNCTION_OPTIONS.map((option) => (
-                    <button
-                      type="button"
-                      key={option}
-                      onClick={() => handleMathFunctionSelect(option)}
-                      className={`block w-full text-left px-3 py-2 hover:bg-green-100 ${
-                        option === value.fn ? 'bg-green-200 font-semibold' : ''
-                      }`}
-                      style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <BlockDropdownMenu isOpen={isMathMenuOpen} triggerRef={mathMenuTriggerRef} width={96}>
+                {MATH_FUNCTION_OPTIONS.map((option) => (
+                  <button
+                    type="button"
+                    key={option}
+                    onClick={() => handleMathFunctionSelect(option)}
+                    className={`block w-full text-left px-3 py-2 hover:bg-green-100 ${
+                      option === value.fn ? 'bg-green-200 font-semibold' : ''
+                    }`}
+                    style={{ fontSize: '0.875rem', lineHeight: '1rem' }}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </BlockDropdownMenu>
             </div>
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>of</span>
             <OperatorSlot
