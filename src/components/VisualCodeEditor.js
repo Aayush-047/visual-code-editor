@@ -1,7 +1,8 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { ChevronDown, FileText, FolderOpen, Image as ImageIcon, Maximize2, Minimize2, Play, Rewind, Save, Search, Shapes, Upload } from 'lucide-react';
+import { ChevronDown, FileText, FolderOpen, Image as ImageIcon, Link2, Maximize2, Minimize2, Play, Rewind, Save, Search, Shapes, Upload, X } from 'lucide-react';
 import Block from './Block';
 import DroppableArea from './DroppableArea';
 import SpeechBubble from './SpeechBubble';
@@ -14,6 +15,7 @@ import * as actionTypes from '../constants/ActionTypes';
 const DEFAULT_SOUNDS = [
   { id: 'meow', name: 'Meow', type: 'builtin', url: '/sounds/Meow.mp3' },
 ];
+const LZ_STRING_CDN_URL = 'https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js';
 
 const SPRITE_LIBRARY = [
   { id: 'cat', name: 'Cat', src: '/assets/sprites/cat.svg', color: '#FFAB19' },
@@ -32,6 +34,7 @@ const BACKDROP_LIBRARY = [
 const RECORD_SOUND_OPTION = '__record_sound__';
 const EDITOR_PANEL_HEIGHT = 'min(600px, calc(100vh - 14rem))';
 const EMPTY_BLOCKS = [];
+const DROPDOWN_MENU_MAX_HEIGHT = 176;
 const EVENT_TRIGGER_ACTIONS = [
   actionTypes.WHEN_KEY_PRESSED,
   actionTypes.WHEN_SPRITE_CLICKED,
@@ -169,6 +172,85 @@ const StagePreview = ({
   </div>
 );
 
+const FloatingDropdownMenu = ({ isOpen, triggerRef, width = 176, placement = 'auto', children }) => {
+  const [menuStyle, setMenuStyle] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!isOpen || !triggerRef.current) {
+      setMenuStyle(null);
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const triggerRect = triggerRef.current.getBoundingClientRect();
+      const menuWidth = Math.max(width, triggerRect.width);
+      const viewportPadding = 8;
+      const gap = 8;
+      const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
+      const spaceAbove = triggerRect.top - viewportPadding;
+      const opensBelow = placement === 'bottom'
+        ? true
+        : placement === 'top'
+          ? false
+          : spaceBelow >= Math.min(DROPDOWN_MENU_MAX_HEIGHT, spaceAbove);
+      const left = Math.min(
+        window.innerWidth - menuWidth - viewportPadding,
+        Math.max(viewportPadding, triggerRect.left)
+      );
+      const top = opensBelow
+        ? triggerRect.bottom + gap
+        : Math.max(viewportPadding, triggerRect.top - DROPDOWN_MENU_MAX_HEIGHT - gap);
+
+      setMenuStyle({
+        left,
+        top,
+        width: menuWidth,
+        maxHeight: Math.max(80, Math.min(DROPDOWN_MENU_MAX_HEIGHT, opensBelow ? spaceBelow - gap : spaceAbove - gap)),
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [isOpen, placement, triggerRef, width]);
+
+  if (!isOpen || !menuStyle) {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      data-floating-dropdown-menu="true"
+      className="fixed z-[9999] overflow-y-auto rounded border border-gray-200 bg-white text-black shadow-2xl"
+      style={menuStyle}
+      onPointerDown={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+      onTouchStart={(event) => event.stopPropagation()}
+    >
+      {children}
+    </div>,
+    document.body
+  );
+};
+
+const BackdropSwatch = ({ backdrop, className = 'h-5 w-5 rounded-md border border-emerald-200' }) => (
+  <div
+    className={`${className} flex flex-shrink-0 items-center justify-center overflow-hidden bg-white`}
+    style={{
+      backgroundImage: backdrop?.url ? `url(${backdrop.url})` : 'none',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+    }}
+  >
+    {!backdrop?.url && <span className="text-[9px] font-semibold text-gray-500">BG</span>}
+  </div>
+);
+
 const PreviewControls = ({
   isRunning,
   replayableBlocks,
@@ -177,45 +259,130 @@ const PreviewControls = ({
   setSelectedReplayBlockId,
   runCode,
   replaySelectedBlock,
+  stopCurrentSprite,
+  stopAllCode,
   compact = false,
-}) => (
-  <div className={`flex flex-wrap items-center gap-2 ${compact ? '' : 'mt-4 justify-end'}`}>
-    <button
-      type="button"
-      onClick={runCode}
-      disabled={isRunning}
-      className={`rounded bg-green-500 p-2 text-white flex items-center ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
-    >
-      <Play size={16} className="mr-1" /> Run Code
-    </button>
-    <select
-      value={selectedReplayBlock?.id || selectedReplayBlockId || ''}
-      onChange={(event) => setSelectedReplayBlockId(event.target.value)}
-      disabled={replayableBlocks.length === 0 || isRunning}
-      className={`h-10 w-52 rounded-full border border-gray-300 bg-white px-3 text-sm text-black shadow-sm ${
-        replayableBlocks.length === 0 || isRunning ? 'cursor-not-allowed opacity-50' : ''
-      }`}
-    >
-      {replayableBlocks.length === 0 ? (
-        <option value="">No replay blocks</option>
-      ) : (
-        replayableBlocks.map((block, blockIndex) => (
-          <option key={block.id} value={block.id}>
-            {blockIndex + 1}. {describeBlock(block)}
-          </option>
-        ))
-      )}
-    </select>
-    <button
-      type="button"
-      onClick={() => void replaySelectedBlock()}
-      disabled={!selectedReplayBlock || isRunning}
-      className={`rounded bg-blue-500 p-2 text-white flex items-center ${(!selectedReplayBlock || isRunning) ? 'opacity-50 cursor-not-allowed' : ''}`}
-    >
-      <Rewind size={16} className="mr-1" /> Replay
-    </button>
-  </div>
-);
+}) => {
+  const replayMenuTriggerRef = useRef(null);
+  const [isReplayMenuOpen, setIsReplayMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (replayableBlocks.length === 0 || isRunning) {
+      setIsReplayMenuOpen(false);
+    }
+  }, [isRunning, replayableBlocks.length]);
+
+  useEffect(() => {
+    if (!isReplayMenuOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (
+        replayMenuTriggerRef.current?.contains(event.target)
+        || event.target.closest('[data-floating-dropdown-menu="true"]')
+      ) {
+        return;
+      }
+
+      setIsReplayMenuOpen(false);
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setIsReplayMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isReplayMenuOpen]);
+
+  return (
+    <div className={`flex flex-wrap items-center gap-2 ${compact ? '' : 'mt-4 justify-end'}`}>
+      <button
+        type="button"
+        onClick={runCode}
+        disabled={isRunning}
+        className={`rounded bg-green-500 p-2 text-white flex items-center ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        <Play size={16} className="mr-1" /> Run Code
+      </button>
+      <div className="relative">
+        <button
+          ref={replayMenuTriggerRef}
+          type="button"
+          onClick={() => {
+            if (replayableBlocks.length === 0 || isRunning) {
+              return;
+            }
+
+            setIsReplayMenuOpen((open) => !open);
+          }}
+          disabled={replayableBlocks.length === 0 || isRunning}
+          className={`flex h-10 min-w-52 items-center justify-between gap-3 rounded-full border border-gray-300 bg-white px-4 text-sm text-black shadow-sm ${
+            replayableBlocks.length === 0 || isRunning ? 'cursor-not-allowed opacity-50' : ''
+          }`}
+        >
+          <span className="truncate">
+            {selectedReplayBlock ? describeBlock(selectedReplayBlock) : 'No replay blocks'}
+          </span>
+          <ChevronDown size={14} className={`flex-shrink-0 transition ${isReplayMenuOpen ? 'rotate-180' : ''}`} />
+        </button>
+        <FloatingDropdownMenu isOpen={isReplayMenuOpen} triggerRef={replayMenuTriggerRef} width={240} placement="bottom">
+          {replayableBlocks.length === 0 ? (
+            <div className="px-4 py-2 text-sm text-gray-500">No replay blocks</div>
+          ) : (
+            replayableBlocks.map((block, blockIndex) => (
+              <button
+                key={block.id}
+                type="button"
+                onClick={() => {
+                  setSelectedReplayBlockId(block.id);
+                  setIsReplayMenuOpen(false);
+                }}
+                className={`block w-full px-4 py-2 text-left text-sm hover:bg-blue-50 ${
+                  selectedReplayBlock?.id === block.id ? 'bg-blue-100 font-semibold text-blue-800' : 'text-gray-800'
+                }`}
+              >
+                {blockIndex + 1}. {describeBlock(block)}
+              </button>
+            ))
+          )}
+        </FloatingDropdownMenu>
+      </div>
+      <button
+        type="button"
+        onClick={() => void replaySelectedBlock()}
+        disabled={!selectedReplayBlock || isRunning}
+        className={`rounded bg-blue-500 p-2 text-white flex items-center ${(!selectedReplayBlock || isRunning) ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        <Rewind size={16} className="mr-1" /> Replay
+      </button>
+      <button
+        type="button"
+        onClick={stopCurrentSprite}
+        disabled={!isRunning}
+        className={`rounded bg-amber-500 px-3 py-2 text-white ${!isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        Stop Current Sprite
+      </button>
+      <button
+        type="button"
+        onClick={stopAllCode}
+        disabled={!isRunning}
+        className={`rounded bg-rose-500 px-3 py-2 text-white ${!isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        Stop All
+      </button>
+    </div>
+  );
+};
 
 const cloneBlockValue = (value) => {
   if (value && typeof value === 'object') {
@@ -490,6 +657,7 @@ const VisualCodeEditor = () => {
   const previewRef = useRef(null);
   const toastTimeoutRef = useRef(null);
   const spriteDragRef = useRef({ isDragging: false, hasMoved: false, offsetX: 0, offsetY: 0 });
+  const spriteFileInputRef = useRef(null);
   const backdropFileInputRef = useRef(null);
   const projectFileInputRef = useRef(null);
   const pendingBackdropChangeRef = useRef(null);
@@ -498,13 +666,16 @@ const VisualCodeEditor = () => {
   const recordingStreamRef = useRef(null);
   const recordedChunksRef = useRef([]);
   const activeAudiosRef = useRef([]);
+  const runSessionRef = useRef({ id: 0, stoppedSprites: new Set() });
   const [isRunning, setIsRunning] = useState(false);
   const [isRecordingSound, setIsRecordingSound] = useState(false);
-  const [backdropValue, setBackdropValue] = useState(BACKDROP_LIBRARY[0].id);
   const [sounds, setSounds] = useState(DEFAULT_SOUNDS);
   const [soundVolume, setSoundVolume] = useState(100);
   const [backdropLibrary, setBackdropLibrary] = useState(BACKDROP_LIBRARY);
-  const [sessionBackdrops, setSessionBackdrops] = useState(() => [BACKDROP_LIBRARY[0]]);
+  const [stageState, setStageState] = useState(() => ({
+    backdropId: BACKDROP_LIBRARY[0].id,
+    backdrops: [BACKDROP_LIBRARY[0]],
+  }));
   const [recordingModalState, setRecordingModalState] = useState('closed');
   const [pendingRecordedSound, setPendingRecordedSound] = useState(null);
   const [selectedReplayBlockId, setSelectedReplayBlockId] = useState('');
@@ -524,6 +695,8 @@ const VisualCodeEditor = () => {
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
   const [isAssetsMenuOpen, setIsAssetsMenuOpen] = useState(false);
+  const [isSpriteSelectorOpen, setIsSpriteSelectorOpen] = useState(false);
+  const [isBackdropSelectorOpen, setIsBackdropSelectorOpen] = useState(false);
   const [isSpriteLibraryOpen, setIsSpriteLibraryOpen] = useState(false);
   const [isBackdropLibraryOpen, setIsBackdropLibraryOpen] = useState(false);
   const [spriteLibrarySearch, setSpriteLibrarySearch] = useState('');
@@ -534,9 +707,13 @@ const VisualCodeEditor = () => {
   const [spriteEditorError, setSpriteEditorError] = useState('');
   const fileMenuRef = useRef(null);
   const assetsMenuRef = useRef(null);
+  const spriteSelectorRef = useRef(null);
+  const backdropSelectorRef = useRef(null);
   const spritesRef = useRef([INITIAL_SPRITE]);
   const triggerBroadcastListenersRef = useRef(() => {});
-  const previousBackdropValueRef = useRef(backdropValue);
+  const lzStringLoaderRef = useRef(null);
+  const hasRestoredSharedProjectRef = useRef(false);
+  const previousBackdropValueRef = useRef(stageState.backdropId);
   const [sidebarBlocks, setSidebarBlocks] = useState([
     { id: 'sidebar-move-x', type: MOTION, action: actionTypes.MOVE_X, value: 10 },
     { id: 'sidebar-move-y', type: MOTION, action: actionTypes.MOVE_Y, value: 10 },
@@ -600,6 +777,24 @@ const VisualCodeEditor = () => {
   ]);
 
   const executeAction = useExecuteAction();
+  const backdropValue = stageState.backdropId;
+  const sessionBackdrops = stageState.backdrops;
+  const setBackdropValue = useCallback((nextBackdropValue) => {
+    setStageState((prevStageState) => ({
+      ...prevStageState,
+      backdropId: typeof nextBackdropValue === 'function'
+        ? nextBackdropValue(prevStageState.backdropId)
+        : nextBackdropValue,
+    }));
+  }, []);
+  const setSessionBackdrops = useCallback((nextBackdrops) => {
+    setStageState((prevStageState) => ({
+      ...prevStageState,
+      backdrops: typeof nextBackdrops === 'function'
+        ? nextBackdrops(prevStageState.backdrops)
+        : nextBackdrops,
+    }));
+  }, []);
   const availableBackdrops = sessionBackdrops;
   const activeSpriteId = selectedSpriteId || sprites[0]?.id || '';
   const selectedSprite = sprites.find((sprite) => sprite.id === activeSpriteId) || sprites[0] || null;
@@ -653,6 +848,51 @@ const VisualCodeEditor = () => {
     }, 2500);
   }, []);
 
+  const ensureLZStringLoaded = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return Promise.reject(new Error('Sharing is only available in the browser.'));
+    }
+
+    if (window.LZString?.compressToEncodedURIComponent && window.LZString?.decompressFromEncodedURIComponent) {
+      return Promise.resolve(window.LZString);
+    }
+
+    if (lzStringLoaderRef.current) {
+      return lzStringLoaderRef.current;
+    }
+
+    lzStringLoaderRef.current = new Promise((resolve, reject) => {
+      const existingScript = document.querySelector(`script[src="${LZ_STRING_CDN_URL}"]`);
+
+      const handleReady = () => {
+        if (window.LZString?.compressToEncodedURIComponent && window.LZString?.decompressFromEncodedURIComponent) {
+          resolve(window.LZString);
+          return;
+        }
+
+        reject(new Error('Unable to load sharing tools.'));
+      };
+
+      if (existingScript) {
+        existingScript.addEventListener('load', handleReady, { once: true });
+        existingScript.addEventListener('error', () => reject(new Error('Unable to load sharing tools.')), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = LZ_STRING_CDN_URL;
+      script.async = true;
+      script.onload = handleReady;
+      script.onerror = () => reject(new Error('Unable to load sharing tools.'));
+      document.head.appendChild(script);
+    }).catch((error) => {
+      lzStringLoaderRef.current = null;
+      throw error;
+    });
+
+    return lzStringLoaderRef.current;
+  }, []);
+
   const updateSpriteById = useCallback((spriteId, updater) => {
     setSprites((prevSprites) => prevSprites.map((sprite) => (
       sprite.id === spriteId ? updater(sprite) : sprite
@@ -696,28 +936,62 @@ const VisualCodeEditor = () => {
     })));
   }, []);
 
+  const stopAllActiveSounds = useCallback(() => {
+    activeAudiosRef.current.forEach((audio) => {
+      audio.pause();
+      audio.currentTime = 0;
+    });
+    activeAudiosRef.current = [];
+  }, []);
+
+  const isSpriteRunAborted = useCallback((sessionId, spriteId) => {
+    const currentSession = runSessionRef.current;
+    return currentSession.id !== sessionId || currentSession.stoppedSprites.has(spriteId);
+  }, []);
+
+  const abortablePause = useCallback(async (ms, sessionId, spriteId) => {
+    const endTime = Date.now() + Math.max(0, ms);
+    while (Date.now() < endTime) {
+      if (isSpriteRunAborted(sessionId, spriteId)) {
+        return false;
+      }
+      await pause(Math.min(50, endTime - Date.now()));
+    }
+    return !isSpriteRunAborted(sessionId, spriteId);
+  }, [isSpriteRunAborted]);
+
   useEffect(() => {
     spritesRef.current = sprites;
   }, [sprites]);
 
   useEffect(() => {
-    if (!isFileMenuOpen && !isAssetsMenuOpen) {
+    if (!isFileMenuOpen && !isAssetsMenuOpen && !isSpriteSelectorOpen && !isBackdropSelectorOpen) {
       return undefined;
     }
 
     const handlePointerDown = (event) => {
-      if (fileMenuRef.current?.contains(event.target) || assetsMenuRef.current?.contains(event.target)) {
+      if (
+        fileMenuRef.current?.contains(event.target)
+        || assetsMenuRef.current?.contains(event.target)
+        || spriteSelectorRef.current?.contains(event.target)
+        || backdropSelectorRef.current?.contains(event.target)
+        || event.target.closest('[data-floating-dropdown-menu="true"]')
+      ) {
         return;
       }
 
       setIsFileMenuOpen(false);
       setIsAssetsMenuOpen(false);
+      setIsSpriteSelectorOpen(false);
+      setIsBackdropSelectorOpen(false);
     };
 
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
         setIsFileMenuOpen(false);
         setIsAssetsMenuOpen(false);
+        setIsSpriteSelectorOpen(false);
+        setIsBackdropSelectorOpen(false);
       }
     };
 
@@ -728,7 +1002,7 @@ const VisualCodeEditor = () => {
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [isAssetsMenuOpen, isFileMenuOpen]);
+  }, [isAssetsMenuOpen, isBackdropSelectorOpen, isFileMenuOpen, isSpriteSelectorOpen]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -791,7 +1065,7 @@ const VisualCodeEditor = () => {
     return () => {
       isCancelled = true;
     };
-  }, []);
+  }, [setBackdropValue, setSessionBackdrops]);
 
   useEffect(() => {
     if (selectedSpriteId && sprites.some((sprite) => sprite.id === selectedSpriteId)) {
@@ -842,12 +1116,14 @@ const VisualCodeEditor = () => {
     listNames,
     variableValues,
     listValues,
+    stageState,
     backdropValue,
     sessionBackdrops,
     sounds,
     soundVolume,
     selectedSpriteId,
   }), [
+    stageState,
     backdropValue,
     listNames,
     listValues,
@@ -860,6 +1136,12 @@ const VisualCodeEditor = () => {
     variableNames,
     variableValues,
   ]);
+
+  const getShareProjectState = useCallback(() => ({
+    format: 'visual-code-editor-share',
+    version: 2,
+    state: getProjectState(),
+  }), [getProjectState]);
 
   const applyProjectState = useCallback((state = {}) => {
     const nextSprites = Array.isArray(state.sprites) && state.sprites.length > 0
@@ -895,24 +1177,111 @@ const VisualCodeEditor = () => {
       ];
 
     setSprites(nextSprites);
-    setSidebarBlocks(Array.isArray(state.sidebarBlocks) ? state.sidebarBlocks : []);
+    setSidebarBlocks((prevBlocks) => (Array.isArray(state.sidebarBlocks) ? state.sidebarBlocks : prevBlocks));
     setVariableNames(Array.isArray(state.variableNames) ? state.variableNames : []);
     setListNames(Array.isArray(state.listNames) ? state.listNames : []);
     setVariableValues(state.variableValues && typeof state.variableValues === 'object' ? state.variableValues : {});
     setListValues(state.listValues && typeof state.listValues === 'object' ? state.listValues : {});
-    const nextSessionBackdrops = Array.isArray(state.sessionBackdrops) && state.sessionBackdrops.length > 0
-      ? state.sessionBackdrops
-      : [BACKDROP_LIBRARY[0], ...(Array.isArray(state.uploadedBackdrops) ? state.uploadedBackdrops : [])];
-    setSessionBackdrops(nextSessionBackdrops);
-    setBackdropValue(
-      nextSessionBackdrops.some((backdrop) => String(backdrop.id) === String(state.backdropValue ?? '0'))
-        ? String(state.backdropValue ?? '0')
-        : String(nextSessionBackdrops[0]?.id ?? '0')
-    );
+    const nextStageBackdrops = Array.isArray(state.stageState?.backdrops) && state.stageState.backdrops.length > 0
+      ? state.stageState.backdrops
+      : Array.isArray(state.sessionBackdrops) && state.sessionBackdrops.length > 0
+        ? state.sessionBackdrops
+        : [BACKDROP_LIBRARY[0], ...(Array.isArray(state.uploadedBackdrops) ? state.uploadedBackdrops : [])];
+    const nextStageBackdropId = nextStageBackdrops.some((backdrop) => (
+      String(backdrop.id) === String(state.stageState?.backdropId ?? state.backdropValue ?? BACKDROP_LIBRARY[0].id)
+    ))
+      ? String(state.stageState?.backdropId ?? state.backdropValue ?? BACKDROP_LIBRARY[0].id)
+      : String(nextStageBackdrops[0]?.id ?? BACKDROP_LIBRARY[0].id);
+    setStageState({
+      backdropId: nextStageBackdropId,
+      backdrops: nextStageBackdrops,
+    });
     setSounds(Array.isArray(state.sounds) ? state.sounds : DEFAULT_SOUNDS);
     setSoundVolume(state.soundVolume ?? 100);
     setSelectedSpriteId(state.selectedSpriteId || nextSprites[0]?.id || '');
+    setActiveSidebarTab('blocks');
   }, []);
+
+  const restoreProjectFromHash = useCallback(async () => {
+    const sharedHash = window.location.hash.replace(/^#/, '');
+
+    if (!sharedHash) {
+      return false;
+    }
+
+    const lzString = await ensureLZStringLoaded();
+    const decompressedProject = lzString.decompressFromEncodedURIComponent(sharedHash);
+
+    if (!decompressedProject) {
+      throw new Error('Shared link is invalid or corrupted.');
+    }
+
+    const parsedProject = JSON.parse(decompressedProject);
+    const normalizedSharedState = parsedProject?.format === 'visual-code-editor-share'
+      ? (
+        parsedProject.state
+        || {
+          sprites: parsedProject.sprites,
+          stageState: parsedProject.stageState,
+          variableNames: parsedProject.variableNames,
+          listNames: parsedProject.listNames,
+          variableValues: parsedProject.variableValues,
+          listValues: parsedProject.listValues,
+          sounds: parsedProject.sounds,
+          soundVolume: parsedProject.soundVolume,
+          selectedSpriteId: parsedProject.selectedSpriteId,
+        }
+      )
+      : parsedProject?.format === 'visual-code-editor-project'
+        ? parsedProject.state
+        : parsedProject?.sprites
+          ? parsedProject
+        : null;
+
+    if (!normalizedSharedState) {
+      throw new Error('Shared link does not contain a valid project.');
+    }
+
+    applyProjectState(normalizedSharedState);
+    return true;
+  }, [applyProjectState, ensureLZStringLoaded]);
+
+  useEffect(() => {
+    if (hasRestoredSharedProjectRef.current) {
+      return;
+    }
+
+    let isCancelled = false;
+    hasRestoredSharedProjectRef.current = true;
+
+    void restoreProjectFromHash()
+      .then((didRestore) => {
+        if (!isCancelled && didRestore) {
+          showToast('Shared project loaded.');
+        }
+      })
+      .catch((error) => {
+        if (!isCancelled) {
+          showToast(error.message || 'Unable to open the shared project.');
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [restoreProjectFromHash, showToast]);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      void restoreProjectFromHash().catch(() => undefined);
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, [restoreProjectFromHash]);
 
   const handleSaveProject = useCallback(async () => {
     setIsProjectSaving(true);
@@ -962,6 +1331,24 @@ const VisualCodeEditor = () => {
     }
   }, [getProjectState, showToast]);
 
+  const handleShareProject = useCallback(async () => {
+    try {
+      const lzString = await ensureLZStringLoaded();
+      const compressedProject = lzString.compressToEncodedURIComponent(JSON.stringify(getShareProjectState()));
+
+      if (!compressedProject) {
+        throw new Error('Unable to create a share link for this project.');
+      }
+
+      const sharedUrl = `${window.location.origin}${window.location.pathname}${window.location.search}#${compressedProject}`;
+      window.history.replaceState(null, '', `#${compressedProject}`);
+      await navigator.clipboard.writeText(sharedUrl);
+      showToast('Link copied!');
+    } catch (error) {
+      showToast(error.message || 'Unable to share this project.');
+    }
+  }, [ensureLZStringLoaded, getShareProjectState, showToast]);
+
   const loadProjectFile = useCallback(async (file) => {
     if (!file) return;
 
@@ -1003,6 +1390,56 @@ const VisualCodeEditor = () => {
     showToast(`${librarySprite.name} added.`);
   }, [showToast]);
 
+  const openSpriteUploadPicker = useCallback(() => {
+    spriteFileInputRef.current?.click();
+  }, []);
+
+  const openBackdropUploadPicker = useCallback(() => {
+    backdropFileInputRef.current?.click();
+  }, []);
+
+  const handleSpriteUpload = useCallback((event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+
+    const isSvg = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
+
+    if (!isSvg) {
+      showToast('Upload an SVG sprite file. Raster screenshots are not supported here.');
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const spriteSrc = typeof reader.result === 'string' ? reader.result : '';
+
+      if (!spriteSrc) {
+        showToast('Unable to read that sprite file.');
+        return;
+      }
+
+      const uploadedSprite = {
+        id: `uploaded-sprite-${Date.now()}`,
+        name: file.name.replace(/\.[^.]+$/, '') || 'Uploaded Sprite',
+        src: spriteSrc,
+        color: '#FFAB19',
+        type: 'uploaded',
+      };
+
+      setSpriteLibrary((prevSprites) => [...prevSprites, uploadedSprite]);
+      handleAddSprite(uploadedSprite);
+    };
+
+    reader.onerror = () => {
+      showToast('Unable to read that sprite file.');
+    };
+
+    reader.readAsDataURL(file);
+  }, [handleAddSprite, showToast]);
+
   const handleRemoveSprite = useCallback((spriteId) => {
     setSprites((prevSprites) => {
       if (prevSprites.length <= 1) {
@@ -1018,7 +1455,7 @@ const VisualCodeEditor = () => {
     setBackdropValue(String(nextBackdropId));
     setActiveSidebarTab('backdrops');
     showToast('Initial backdrop updated.');
-  }, [showToast]);
+  }, [setBackdropValue, showToast]);
 
   const handleAddBackdropToSession = useCallback((libraryBackdrop) => {
     setSessionBackdrops((prevBackdrops) => {
@@ -1029,7 +1466,7 @@ const VisualCodeEditor = () => {
       return [...prevBackdrops, libraryBackdrop];
     });
     showToast(`${libraryBackdrop.name} added to session backdrops.`);
-  }, [showToast]);
+  }, [setSessionBackdrops, showToast]);
 
   const handleApplySpriteMarkup = useCallback((nextMarkup = spriteEditorMarkup) => {
     if (!selectedSprite) {
@@ -1501,20 +1938,26 @@ const VisualCodeEditor = () => {
     return toTruthiness(conditionValue);
   }, [evaluateOperatorBlock]);
 
-  const executeControlAction = useCallback(async (block, runNestedBlockList) => {
+  const executeControlAction = useCallback(async (block, runNestedBlockList, waitForMs, shouldAbort) => {
     switch (block.action) {
       case actionTypes.WAIT_SECONDS:
-        await pause(Math.max(0, toNumber(block.value)) * 1000);
+        await waitForMs(Math.max(0, toNumber(block.value)) * 1000);
         break;
       case actionTypes.REPEAT_TIMES: {
         const repeatCount = Math.max(0, Math.floor(toNumber(block.value?.times)));
         for (let index = 0; index < repeatCount; index += 1) {
+          if (shouldAbort()) {
+            break;
+          }
           await runNestedBlockList(block.children || []);
         }
         break;
       }
       case actionTypes.FOREVER:
         for (let index = 0; index < 100; index += 1) {
+          if (shouldAbort()) {
+            break;
+          }
           await runNestedBlockList(block.children || []);
         }
         break;
@@ -1532,11 +1975,16 @@ const VisualCodeEditor = () => {
         break;
       case actionTypes.WAIT_UNTIL:
         while (!evaluateCondition(block.value?.condition)) {
-          await pause(100);
+          if (!(await waitForMs(100))) {
+            break;
+          }
         }
         break;
       case actionTypes.REPEAT_UNTIL:
         while (!evaluateCondition(block.value?.condition)) {
+          if (shouldAbort()) {
+            break;
+          }
           await runNestedBlockList(block.children || []);
         }
         break;
@@ -1600,7 +2048,9 @@ const VisualCodeEditor = () => {
     }
   }, []);
 
-  const runBlockListForSprite = useCallback(async (spriteId, blockList) => {
+  const runBlockListForSprite = useCallback(async (sessionId, spriteId, blockList) => {
+    const shouldAbort = () => isSpriteRunAborted(sessionId, spriteId);
+    const waitForMs = (ms) => abortablePause(ms, sessionId, spriteId);
     const setSpriteStateForId = (nextState) => updateSpriteById(spriteId, (sprite) => ({
       ...sprite,
       spriteState: typeof nextState === 'function' ? nextState(sprite.spriteState) : nextState,
@@ -1612,6 +2062,10 @@ const VisualCodeEditor = () => {
     const setSpeechBubbleForId = (nextBubble) => setSpriteSpeechBubble(spriteId, nextBubble);
 
     for (const block of blockList) {
+      if (shouldAbort()) {
+        return;
+      }
+
       if (isEventTriggerAction(block.action)) {
         continue;
       }
@@ -1626,15 +2080,27 @@ const VisualCodeEditor = () => {
         }
         await executeVariableAction(block);
         if (shouldApplyStepDelay(block)) {
-          await pause(BLOCK_STEP_DELAY_MS);
+          if (!(await waitForMs(BLOCK_STEP_DELAY_MS))) {
+            return;
+          }
         }
         continue;
       }
 
       if (block.type === CONTROLS) {
-        await executeControlAction(block, (nestedBlocks) => runBlockListForSprite(spriteId, nestedBlocks));
+        await executeControlAction(
+          block,
+          (nestedBlocks) => runBlockListForSprite(sessionId, spriteId, nestedBlocks),
+          waitForMs,
+          shouldAbort
+        );
+        if (shouldAbort()) {
+          return;
+        }
         if (shouldApplyStepDelay(block)) {
-          await pause(BLOCK_STEP_DELAY_MS);
+          if (!(await waitForMs(BLOCK_STEP_DELAY_MS))) {
+            return;
+          }
         }
         continue;
       }
@@ -1649,21 +2115,31 @@ const VisualCodeEditor = () => {
         setSpriteColorForId,
         setBackdropValue,
         setSoundVolume,
-        (message) => triggerBroadcastListenersRef.current(message)
+        (message) => triggerBroadcastListenersRef.current(message),
+        {
+          shouldAbort,
+          waitForMs,
+        }
       );
+      if (shouldAbort()) {
+        return;
+      }
       if (shouldApplyStepDelay(block)) {
-        await pause(BLOCK_STEP_DELAY_MS);
+        if (!(await waitForMs(BLOCK_STEP_DELAY_MS))) {
+          return;
+        }
       }
     }
-  }, [executeAction, executeControlAction, executeVariableAction, setSpriteSpeechBubble, sounds, soundVolume, updateSpriteById]);
+  }, [abortablePause, executeAction, executeControlAction, executeVariableAction, isSpriteRunAborted, setBackdropValue, setSpriteSpeechBubble, sounds, soundVolume, updateSpriteById]);
 
   const runMatchingEventBlocks = useCallback((predicate, spritePredicate = () => true) => {
+    const sessionId = runSessionRef.current.id;
     const eventRuns = spritesRef.current
       .filter(spritePredicate)
       .flatMap((sprite) => (
         (sprite.blocks || [])
           .filter((block) => isEventTriggerAction(block.action) && predicate(block))
-          .map((block) => runBlockListForSprite(sprite.id, block.children || []))
+          .map((block) => runBlockListForSprite(sessionId, sprite.id, block.children || []))
       ));
 
     return Promise.all(eventRuns);
@@ -1686,12 +2162,15 @@ const VisualCodeEditor = () => {
 
   const runCode = useCallback(async () => {
     if (isRunning) return;
+    const sessionId = runSessionRef.current.id + 1;
+    runSessionRef.current = { id: sessionId, stoppedSprites: new Set() };
     clearAllSpriteSpeechBubbles();
     setIsRunning(true);
 
     try {
       await Promise.all(
         sprites.map((sprite) => runBlockListForSprite(
+          sessionId,
           sprite.id,
           (sprite.blocks || []).filter((block) => !isEventTriggerAction(block.action))
         ))
@@ -1747,15 +2226,42 @@ const VisualCodeEditor = () => {
       return;
     }
 
+    const sessionId = runSessionRef.current.id + 1;
+    runSessionRef.current = { id: sessionId, stoppedSprites: new Set() };
     setIsRunning(true);
 
     try {
-      await runBlockListForSprite(activeSpriteId, [selectedReplayBlock]);
+      await runBlockListForSprite(sessionId, activeSpriteId, [selectedReplayBlock]);
       showToast(`Replayed ${describeBlock(selectedReplayBlock)}.`);
     } finally {
       setIsRunning(false);
     }
   }, [activeSpriteId, runBlockListForSprite, selectedReplayBlock, showToast]);
+
+  const stopCurrentSprite = useCallback(() => {
+    if (!isRunning || !activeSpriteId) {
+      return;
+    }
+
+    runSessionRef.current.stoppedSprites.add(activeSpriteId);
+    setSpriteSpeechBubble(activeSpriteId, { message: '', isThinking: false });
+    showToast('Current sprite stopped.');
+  }, [activeSpriteId, isRunning, setSpriteSpeechBubble, showToast]);
+
+  const stopAllCode = useCallback(() => {
+    if (!isRunning) {
+      return;
+    }
+
+    runSessionRef.current = {
+      id: runSessionRef.current.id + 1,
+      stoppedSprites: new Set(),
+    };
+    stopAllActiveSounds();
+    clearAllSpriteSpeechBubbles();
+    setIsRunning(false);
+    showToast('Stopped all running code.');
+  }, [clearAllSpriteSpeechBubbles, isRunning, showToast, stopAllActiveSounds]);
 
   const handleBackdropMenuAction = useCallback((id, action, onChange) => {
     pendingBackdropChangeRef.current = { id, action, onChange };
@@ -1793,7 +2299,7 @@ const VisualCodeEditor = () => {
     };
 
     reader.readAsDataURL(file);
-  }, []);
+  }, [setSessionBackdrops]);
 
   useEffect(() => {
     sessionBackdropsRef.current = sessionBackdrops.filter((backdrop) => backdrop.type === 'uploaded');
@@ -1933,8 +2439,8 @@ const VisualCodeEditor = () => {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="flex h-full min-h-0 flex-col">
-        <nav className="flex h-16 flex-shrink-0 items-center justify-between border-b border-sky-900/60 bg-gradient-to-r from-sky-600 via-blue-700 to-indigo-800 px-5 shadow-sm">
-          <div className="flex min-w-0 flex-wrap items-center gap-1">
+        <nav className="grid h-16 flex-shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-sky-900/60 bg-gradient-to-r from-sky-600 via-blue-700 to-indigo-800 px-5 shadow-sm">
+          <div className="flex min-w-0 flex-wrap items-center gap-1 justify-self-start">
             <div ref={fileMenuRef} className="relative">
               <button
                 type="button"
@@ -1976,7 +2482,7 @@ const VisualCodeEditor = () => {
                   <Upload size={15} className="text-blue-600" />
                   Load Project
                 </button>
-              </div>
+                </div>
               )}
             </div>
             <div ref={assetsMenuRef} className="relative">
@@ -2021,8 +2527,100 @@ const VisualCodeEditor = () => {
                 </div>
               )}
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsFileMenuOpen(false);
+                setIsAssetsMenuOpen(false);
+                void handleShareProject();
+              }}
+              className="flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+            >
+              <Link2 size={16} />
+              Share
+            </button>
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-white">Visual Code Editor</h1>
+          <div className="flex items-center justify-center">
+            <div className="flex flex-wrap items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 shadow-sm backdrop-blur-sm">
+              {selectedSprite && (
+                <div ref={spriteSelectorRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsBackdropSelectorOpen(false);
+                    setIsSpriteSelectorOpen((open) => !open);
+                  }}
+                  className="flex items-center gap-2 rounded-full bg-white/95 px-3 py-1 text-orange-900 shadow-sm"
+                >
+                  <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center overflow-hidden">
+                    <SpriteGraphic src={selectedSprite.src} markup={selectedSprite.svgMarkup} color={selectedSprite.color} width="14" height="14" className="block" />
+                  </div>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-orange-700">Sprite</span>
+                  <span className="max-w-28 truncate text-sm font-semibold">{selectedSprite.name}</span>
+                  <ChevronDown size={14} className={`transition ${isSpriteSelectorOpen ? 'rotate-180' : ''}`} />
+                </button>
+                <FloatingDropdownMenu isOpen={isSpriteSelectorOpen} triggerRef={spriteSelectorRef} width={200}>
+                  {sprites.map((sprite) => (
+                    <button
+                      key={sprite.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedSpriteId(sprite.id);
+                        setIsSpriteSelectorOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-orange-50 ${
+                        activeSpriteId === sprite.id ? 'bg-orange-100 font-semibold text-orange-800' : 'text-gray-800'
+                      }`}
+                    >
+                      <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center overflow-hidden">
+                        <SpriteGraphic src={sprite.src} markup={sprite.svgMarkup} color={sprite.color} width="14" height="14" className="block" />
+                      </div>
+                      <span className="truncate">{sprite.name}</span>
+                    </button>
+                  ))}
+                </FloatingDropdownMenu>
+                </div>
+              )}
+              {selectedBackdrop && (
+                <div ref={backdropSelectorRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSpriteSelectorOpen(false);
+                    setIsBackdropSelectorOpen((open) => !open);
+                  }}
+                  className="flex items-center gap-2 rounded-full bg-white/95 px-3 py-1 text-emerald-900 shadow-sm"
+                >
+                  <BackdropSwatch backdrop={selectedBackdrop} />
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Backdrop</span>
+                  <span className="max-w-28 truncate text-sm font-semibold">{selectedBackdrop.name}</span>
+                  <ChevronDown size={14} className={`transition ${isBackdropSelectorOpen ? 'rotate-180' : ''}`} />
+                </button>
+                <FloatingDropdownMenu isOpen={isBackdropSelectorOpen} triggerRef={backdropSelectorRef} width={220}>
+                  {availableBackdrops.map((backdrop) => (
+                    <button
+                      key={backdrop.id}
+                      type="button"
+                      onClick={() => {
+                        handleSelectBackdrop(backdrop.id);
+                        setIsBackdropSelectorOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-emerald-50 ${
+                        String(backdrop.id) === String(backdropValue) ? 'bg-emerald-100 font-semibold text-emerald-800' : 'text-gray-800'
+                      }`}
+                    >
+                      <BackdropSwatch backdrop={backdrop} />
+                      <span className="truncate">{backdrop.name}</span>
+                    </button>
+                  ))}
+                </FloatingDropdownMenu>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="justify-self-end">
+            <h1 className="text-xl font-bold tracking-tight text-white">Visual Code Editor</h1>
+          </div>
         </nav>
       <div className="flex min-h-0 flex-1">
         {/* Sidebar */}
@@ -2384,14 +2982,6 @@ const VisualCodeEditor = () => {
         <div className="w-3/6 p-4 h-[100%]">
         <div className="mb-4 flex items-center justify-center gap-3">
           <h1 className="text-xl font-bold">Workspace</h1>
-          {selectedSprite && (
-            <div className="flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 shadow-sm">
-              <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center overflow-hidden">
-                <SpriteGraphic src={selectedSprite.src} markup={selectedSprite.svgMarkup} color={selectedSprite.color} width="14" height="14" className="block" />
-              </div>
-              <span className="text-sm font-semibold text-orange-700">{selectedSprite.name}</span>
-            </div>
-          )}
         </div>
         <p className="text-center mb-2 font-semibold">
           {activeSidebarTab === 'sprite'
@@ -2483,6 +3073,8 @@ const VisualCodeEditor = () => {
             setSelectedReplayBlockId={setSelectedReplayBlockId}
             runCode={runCode}
             replaySelectedBlock={replaySelectedBlock}
+            stopCurrentSprite={stopCurrentSprite}
+            stopAllCode={stopAllCode}
           />
         </div>
         )}
@@ -2525,6 +3117,8 @@ const VisualCodeEditor = () => {
               setSelectedReplayBlockId={setSelectedReplayBlockId}
               runCode={runCode}
               replaySelectedBlock={replaySelectedBlock}
+              stopCurrentSprite={stopCurrentSprite}
+              stopAllCode={stopAllCode}
               compact
             />
           </div>
@@ -2540,9 +3134,10 @@ const VisualCodeEditor = () => {
             <button
               type="button"
               onClick={() => setIsSpriteLibraryOpen(false)}
-              className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white"
+              className="rounded-full bg-gray-100 p-2 text-gray-700 transition hover:bg-gray-200"
+              aria-label="Close sprite library"
             >
-              Close
+              <X size={18} />
             </button>
           </div>
           <div className="h-[calc(100vh-4rem)] overflow-y-auto px-6 py-6">
@@ -2577,6 +3172,17 @@ const VisualCodeEditor = () => {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-6">
+              <button
+                type="button"
+                onClick={openSpriteUploadPicker}
+                className="rounded-2xl border-2 border-dashed border-sky-300 bg-sky-50 p-4 text-left transition hover:border-sky-400 hover:bg-sky-100"
+              >
+                <div className="mb-3 flex h-32 items-center justify-center rounded-xl bg-white/70 text-sky-600">
+                  <span className="text-5xl font-light leading-none">+</span>
+                </div>
+                <div className="text-sm font-semibold text-sky-900">Upload Local Sprite</div>
+                <div className="mt-1 text-xs text-sky-700">Convert artwork to SVG first, then upload it here.</div>
+              </button>
               {filteredSpriteLibrary.map((librarySprite) => (
                 <button
                   key={librarySprite.id}
@@ -2609,9 +3215,10 @@ const VisualCodeEditor = () => {
             <button
               type="button"
               onClick={() => setIsBackdropLibraryOpen(false)}
-              className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white"
+              className="rounded-full bg-gray-100 p-2 text-gray-700 transition hover:bg-gray-200"
+              aria-label="Close backdrop library"
             >
-              Close
+              <X size={18} />
             </button>
           </div>
           <div className="h-[calc(100vh-4rem)] overflow-y-auto px-6 py-6">
@@ -2646,6 +3253,17 @@ const VisualCodeEditor = () => {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+              <button
+                type="button"
+                onClick={openBackdropUploadPicker}
+                className="rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50 p-4 text-left transition hover:border-emerald-400 hover:bg-emerald-100"
+              >
+                <div className="mb-3 flex h-40 items-center justify-center rounded-xl bg-white/70 text-emerald-600">
+                  <span className="text-5xl font-light leading-none">+</span>
+                </div>
+                <div className="text-sm font-semibold text-emerald-900">Upload Local Backdrop</div>
+                <div className="mt-1 text-xs text-emerald-700">Add an image from your machine to this session.</div>
+              </button>
               {filteredBackdropLibrary.map((libraryBackdrop) => {
                 const isAdded = availableBackdrops.some((backdrop) => String(backdrop.id) === String(libraryBackdrop.id));
 
@@ -2694,6 +3312,13 @@ const VisualCodeEditor = () => {
         </div>
       )}
       <input
+        ref={spriteFileInputRef}
+        type="file"
+        accept=".svg,image/svg+xml"
+        onChange={handleSpriteUpload}
+        className="hidden"
+      />
+      <input
         ref={backdropFileInputRef}
         type="file"
         accept="image/*"
@@ -2708,8 +3333,10 @@ const VisualCodeEditor = () => {
         className="hidden"
       />
       {toastMessage && (
-        <div className="fixed top-4 right-4 z-50 max-w-sm rounded-lg bg-gray-900 px-4 py-3 text-sm text-white shadow-xl">
-          {toastMessage}
+        <div className="fixed left-1/2 top-4 z-50 w-full max-w-sm -translate-x-1/2 px-4">
+          <div className="rounded-2xl border border-sky-300/60 bg-gradient-to-r from-sky-100 via-blue-100 to-orange-100 px-4 py-3 text-center text-sm font-semibold text-slate-900 shadow-[0_18px_45px_rgba(30,64,175,0.2)] backdrop-blur-sm">
+              {toastMessage}
+          </div>
         </div>
       )}
       {isVariableModalOpen && (

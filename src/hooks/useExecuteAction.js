@@ -78,7 +78,17 @@ const getBroadcastMessageValue = (value) => (
 );
 
 const useExecuteAction = () => {
-  return useCallback(async (block, sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume, onBroadcast) => {
+  return useCallback(async (block, sounds, soundVolume, activeAudiosRef, setSpriteState, setSpeechBubble, setSpriteColor, setBackdropValue, setSoundVolume, onBroadcast, runtimeControls = {}) => {
+    const shouldAbort = runtimeControls.shouldAbort || (() => false);
+    const waitForMs = runtimeControls.waitForMs || (async (ms) => {
+      await new Promise((resolve) => setTimeout(resolve, ms));
+      return true;
+    });
+
+    if (shouldAbort()) {
+      return;
+    }
+
     if (block.action === PLAY_SOUND) {
       const sound = sounds.find(({ id }) => id === block.value);
       await playSoundToCompletion(sound, soundVolume, activeAudiosRef);
@@ -86,31 +96,26 @@ const useExecuteAction = () => {
     }
 
     if (block.action === SAY || block.action === THINK) {
-      await new Promise((resolve) => {
-        setSpeechBubble({ message: block.value || (block.action === SAY ? 'Hello!' : 'Hmm...'), isThinking: block.action === THINK });
-        setTimeout(() => {
-          setSpeechBubble({ message: '', isThinking: false });
-          resolve();
-        }, 2000);
-      });
+      setSpeechBubble({ message: block.value || (block.action === SAY ? 'Hello!' : 'Hmm...'), isThinking: block.action === THINK });
+      await waitForMs(2000);
+      setSpeechBubble({ message: '', isThinking: false });
       return;
     }
 
     if (block.action === SAY_TIMER || block.action === THINK_TIMER) {
-      await new Promise((resolve) => {
-        setSpeechBubble({
-          message: block.value?.message || (block.action === SAY_TIMER ? 'Hello!' : 'Hmm...'),
-          isThinking: block.action === THINK_TIMER,
-        });
-        setTimeout(() => {
-          setSpeechBubble({ message: '', isThinking: false });
-          resolve();
-        }, parseDuration(block.value?.duration) * 1000);
+      setSpeechBubble({
+        message: block.value?.message || (block.action === SAY_TIMER ? 'Hello!' : 'Hmm...'),
+        isThinking: block.action === THINK_TIMER,
       });
+      await waitForMs(parseDuration(block.value?.duration) * 1000);
+      setSpeechBubble({ message: '', isThinking: false });
       return;
     }
 
     if (block.action === BROADCAST_MESSAGE_FOR) {
+      if (shouldAbort()) {
+        return;
+      }
       await Promise.resolve(onBroadcast?.(getBroadcastMessageValue(block.value)));
       return;
     }
@@ -179,7 +184,9 @@ const useExecuteAction = () => {
         return newState;
       });
 
-      waitForVisualAction().then(resolve);
+      waitForVisualAction()
+        .then(() => waitForMs(0))
+        .then(resolve);
     });
   }, []);
 };
