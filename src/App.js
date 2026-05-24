@@ -3,11 +3,11 @@ import VisualCodeEditor from './components/VisualCodeEditor';
 
 function App() {
   return (
-    <div className="App flex min-h-screen flex-col">
+    <div className="App editor-surface flex min-h-screen flex-col">
       <main className="flex-1">
         <VisualCodeEditor />
       </main>
-      <footer className="bg-gray-200 p-4 mt-8 text-center text-gray-600">
+      <footer className="app-footer theme-transition p-4 text-center backdrop-blur-sm">
         <p>Powered by Aayush Khunger</p>
       </footer>
     </div>

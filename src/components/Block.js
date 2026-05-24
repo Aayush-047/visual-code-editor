@@ -1,7 +1,8 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDrag, useDrop } from 'react-dnd';
 import { CONTROLS, EVENTS, MOTION, OPERATORS, SOUND, SPRITE, VARIABLES } from '../constants/BlockTypes';
+import Tooltip from './Tooltip';
 import {
   MOVE_X, MOVE_Y, TURN_RIGHT, TURN_LEFT, GOTO, GOTO_RANDOM,
   POINT_IN_DIRECTION, POINT_TOWARDS_RANDOM, SAY, THINK,
@@ -66,6 +67,23 @@ const OPERATOR_NUMBER_MIN = -1000000;
 const OPERATOR_NUMBER_MAX = 1000000;
 const MATH_FUNCTION_OPTIONS = ['abs', 'floor', 'ceiling', 'sqrt', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'ln', 'log', 'e^', '10^'];
 const DROPDOWN_MENU_MAX_HEIGHT = 176;
+const INPUT_BASE_CLASSNAME = 'themed-input-pill rounded-full border border-transparent px-2 py-1 text-black outline-none transition';
+const WORKSPACE_INPUT_CLASSNAME = 'focus:border-blue-500 focus:ring-2 focus:ring-blue-200';
+const PALETTE_INPUT_CLASSNAME = 'focus:border-slate-300';
+const DROPDOWN_PILL_CLASSNAME = 'dropdown-pill flex items-center justify-between gap-2 rounded-full bg-white px-2 text-black shadow-sm';
+const EVENT_TOOLTIPS = {
+  [WHEN_KEY_PRESSED]: 'Runs when you press this keyboard key',
+  [WHEN_SPRITE_CLICKED]: 'Runs when you click the sprite in the preview',
+  [WHEN_BACKDROP_SWITCHES_TO]: 'Runs when the stage changes to this backdrop',
+  [WHEN_LOUDNESS_GREATER_THAN]: 'Runs when your microphone hears a loud sound',
+  [WHEN_I_RECEIVE]: 'Runs when another block broadcasts this message',
+};
+const SOUND_ICONS = {
+  [PLAY_SOUND]: '♪',
+  [SET_VOLUME]: '▤',
+  [CHANGE_VOLUME_BY]: '±',
+  [CLEAR_ALL_SOUNDS]: '✕',
+};
 
 const isOperatorBlockValue = (slotValue) => (
   slotValue && typeof slotValue === 'object' && slotValue.type === OPERATORS
@@ -164,6 +182,11 @@ const OperatorSlot = ({
   inputType = 'number',
   minCharsOverride,
   compact = false,
+  selectedBlockId = '',
+  onSelect,
+  onRequestRemove,
+  removingBlockIds = [],
+  recentlyAddedBlockIds = [],
 }) => {
   const slotRef = useRef(null);
   const slotBlock = isOperatorBlockValue(slotValue) ? slotValue : null;
@@ -219,6 +242,11 @@ const OperatorSlot = ({
           onOperatorSlotChange={onOperatorSlotChange}
           onOperatorSlotDrop={onOperatorSlotDrop}
           onOperatorValidationMessage={onOperatorValidationMessage}
+          selectedBlockId={selectedBlockId}
+          onSelect={onSelect}
+          onRequestRemove={onRequestRemove}
+          removingBlockIds={removingBlockIds}
+          recentlyAddedBlockIds={recentlyAddedBlockIds}
         />
       </div>
     );
@@ -273,6 +301,15 @@ const Block = ({
   onOperatorSlotDrop,
   onOperatorValidationMessage,
   onDeleteVariableEntity,
+  isSelected = false,
+  onSelect,
+  onRequestRemove,
+  isDeleting = false,
+  isNewlyPlaced = false,
+  showSnapIndicators = false,
+  selectedBlockId = '',
+  removingBlockIds = [],
+  recentlyAddedBlockIds = [],
 }) => {
   const blockRef = useRef(null);
   const nestedDropRef = useRef(null);
@@ -298,7 +335,7 @@ const Block = ({
   const isControlContainerBlock = CONTROL_CONTAINER_ACTIONS.includes(action);
   const isOperatorBlock = OPERATOR_ACTIONS.includes(action);
 
-  const [, drop] = useDrop(() => ({
+  const [{ isTopLevelOver }, drop] = useDrop(() => ({
     accept: 'block',
     hover: (item, monitor) => {
       if (!moveBlock || !monitor.isOver({ shallow: true }) || !item.isWorkspaceBlock || item.parentId || item.index === index) {
@@ -308,6 +345,9 @@ const Block = ({
       moveBlock(item.index, index);
       item.index = index;
     },
+    collect: (monitor) => ({
+      isTopLevelOver: !!monitor.isOver({ shallow: true }) && monitor.canDrop(),
+    }),
   }), [index, moveBlock]);
 
   const [{ isDragging }, drag] = useDrag(() => ({
@@ -366,21 +406,45 @@ const Block = ({
     }),
   }), [action, id, onNestedDrop]);
 
-  if (moveBlock) {
-    drop(blockRef);
-  }
+  const attachBlockRef = useCallback((node) => {
+    blockRef.current = node;
 
-  if (isDraggable) {
-    drag(blockRef);
-  }
+    if (!node) {
+      return;
+    }
 
-  if ((isEventTriggerBlock || isControlContainerBlock) && isWorkspaceBlock) {
-    nestedDrop(nestedDropRef);
-  }
+    if (moveBlock) {
+      drop(node);
+    }
 
-  if (action === IF_THEN_ELSE && isWorkspaceBlock) {
-    elseNestedDrop(elseNestedDropRef);
-  }
+    if (isDraggable) {
+      drag(node);
+    }
+  }, [drag, drop, isDraggable, moveBlock]);
+
+  const attachNestedDropRef = useCallback((node) => {
+    nestedDropRef.current = node;
+
+    if (!node) {
+      return;
+    }
+
+    if ((isEventTriggerBlock || isControlContainerBlock) && isWorkspaceBlock) {
+      nestedDrop(node);
+    }
+  }, [isControlContainerBlock, isEventTriggerBlock, isWorkspaceBlock, nestedDrop]);
+
+  const attachElseNestedDropRef = useCallback((node) => {
+    elseNestedDropRef.current = node;
+
+    if (!node) {
+      return;
+    }
+
+    if (action === IF_THEN_ELSE && isWorkspaceBlock) {
+      elseNestedDrop(node);
+    }
+  }, [action, elseNestedDrop, isWorkspaceBlock]);
 
   useEffect(() => {
     const hasOpenMenu = isKeyMenuOpen || isBackdropMenuOpen || isSoundMenuOpen || isMathMenuOpen || activeVariableMenu || activeListMenu;
@@ -642,12 +706,56 @@ const Block = ({
     onDeleteVariableEntity?.(entityType, name);
   };
 
+  const inputClassName = `${INPUT_BASE_CLASSNAME} ${isWorkspaceBlock ? WORKSPACE_INPUT_CLASSNAME : PALETTE_INPUT_CLASSNAME}`;
+  const wrapperColorClassName = type === MOTION
+    ? 'bg-blue-500'
+    : type === SOUND
+      ? 'bg-pink-500'
+      : type === SPRITE
+        ? 'bg-orange-500'
+        : type === EVENTS
+          ? 'bg-yellow-500'
+          : type === CONTROLS
+            ? 'bg-amber-500'
+            : type === OPERATORS
+              ? 'bg-green-500'
+              : type === VARIABLES
+                ? 'bg-orange-600'
+                : 'bg-purple-500';
+  const blockLabel = action === WHEN_BACKDROP_SWITCHES_TO ? 'when' : action === BROADCAST_MESSAGE_FOR ? 'broadcast' : action;
+  const soundIcon = SOUND_ICONS[action];
+  const eventTooltip = EVENT_TOOLTIPS[action];
+  const minBlockHeightClassName = type === VARIABLES && [
+    ADD_TO_LIST,
+    DELETE_FROM_LIST,
+    INSERT_AT_LIST,
+    REPLACE_ITEM_IN_LIST,
+  ].includes(action)
+    ? 'min-h-10'
+    : '';
+  const resolvedIsSelected = isSelected || selectedBlockId === id;
+  const resolvedIsDeleting = isDeleting || removingBlockIds.includes(id);
+  const resolvedIsNewlyPlaced = isNewlyPlaced || recentlyAddedBlockIds.includes(id);
+  const rootClassName = `group relative m-1 rounded-xl p-2 text-white shadow-sm ${
+    isDraggable ? 'drag-card' : ''
+  } ${wrapperColorClassName} ${isDragging ? 'opacity-50' : 'opacity-100'} ${
+    isWorkspaceBlock ? 'workspace-block-drop' : ''
+  } ${resolvedIsNewlyPlaced ? 'workspace-block-enter' : ''} ${resolvedIsDeleting ? 'workspace-block-exit' : ''} ${
+    showSnapIndicators || isTopLevelOver ? 'snap-indicator-active' : ''
+  } ${minBlockHeightClassName} ${
+    resolvedIsSelected ? 'ring-[2px] ring-blue-500 shadow-[0_0_0_4px_rgba(59,130,246,0.15)]' : ''
+  }`;
+
+  const RootWrapper = ({ children }) => eventTooltip ? (
+    <Tooltip content={eventTooltip}>{children}</Tooltip>
+  ) : children;
+
   const blockContent = (
     <>
       <div className="flex items-center flex-wrap gap-y-1">
         {!isOperatorBlock && type !== VARIABLES && (
           <span className="mr-2" style={{ fontSize: '0.75rem' }}>
-            {action === WHEN_BACKDROP_SWITCHES_TO ? 'when' : action === BROADCAST_MESSAGE_FOR ? 'broadcast' : action}
+            {soundIcon ? `${soundIcon} ${blockLabel}` : blockLabel}
           </span>
         )}
         {(action === MOVE_X || action === MOVE_Y || action === TURN_RIGHT || action === TURN_LEFT || action === POINT_IN_DIRECTION || action === CHANGE_SIZE_TO || action === CHANGE_SIZE_BY || action === SET_VOLUME || action === CHANGE_VOLUME_BY || action === WHEN_LOUDNESS_GREATER_THAN) && (
@@ -657,7 +765,7 @@ const Block = ({
             max={(action === SET_VOLUME || action === WHEN_LOUDNESS_GREATER_THAN) ? 100 : undefined}
             value={value}
             onChange={handleInputChange}
-            className="w-12 p-1 text-black rounded-full"
+            className={`${inputClassName} w-12`}
             style={{ fontSize: '0.75rem' }}
           />
         )}
@@ -707,11 +815,11 @@ const Block = ({
                 ref={keyMenuTriggerRef}
                 type="button"
                 onClick={() => setIsKeyMenuOpen((isOpen) => !isOpen)}
-                className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
+                className={`${DROPDOWN_PILL_CLASSNAME} w-20`}
                 style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
               >
                 <span className="truncate">{selectedKeyOption.label}</span>
-                <span className="ml-2 text-gray-600">v</span>
+                <span className="dropdown-chevron">˅</span>
               </button>
               <BlockDropdownMenu isOpen={isKeyMenuOpen} triggerRef={keyMenuTriggerRef} width={144}>
                 {KEY_OPTIONS.map((keyOption) => (
@@ -741,7 +849,7 @@ const Block = ({
               type="number"
               value={value[0]}
               onChange={(e) => handleInputChange(e, 0)}
-              className="w-12 p-1 text-black rounded-full mr-1"
+              className={`${inputClassName} mr-1 w-12`}
               placeholder="X"
               style={{ fontSize: '0.75rem' }}
             />
@@ -749,7 +857,7 @@ const Block = ({
               type="number"
               value={value[1]}
               onChange={(e) => handleInputChange(e, 1)}
-              className="w-12 p-1 text-black rounded-full"
+              className={`${inputClassName} w-12`}
               placeholder="Y"
               style={{ fontSize: '0.75rem' }}
             />
@@ -760,7 +868,7 @@ const Block = ({
             type="text"
             value={value}
             onChange={handleInputChange}
-            className="w-16 p-1 text-black rounded-full"
+            className={`${inputClassName} w-16`}
             placeholder="message"
             style={{ fontSize: '0.75rem' }}
           />
@@ -771,7 +879,7 @@ const Block = ({
               type="text"
               value={value.message}
               onChange={(e) => handleInputChange(e, 'message')}
-              className="w-16 p-1 text-black rounded-full mr-1"
+              className={`${inputClassName} mr-1 w-16`}
               placeholder="message"
               style={{ fontSize: '0.75rem' }}
             />
@@ -779,7 +887,7 @@ const Block = ({
               type="number"
               value={value.duration}
               onChange={(e) => handleInputChange(e, 'duration')}
-              className="w-12 p-1 text-black rounded-full"
+              className={`${inputClassName} w-12`}
               placeholder="Seconds"
               style={{ fontSize: '0.75rem' }}
             />
@@ -808,11 +916,11 @@ const Block = ({
               ref={backdropMenuTriggerRef}
               type="button"
               onClick={() => setIsBackdropMenuOpen((isOpen) => !isOpen)}
-              className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
+              className={`${DROPDOWN_PILL_CLASSNAME} w-20`}
               style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
             >
               <span className="truncate">{selectedBackdropOption?.name || 'Backdrop'}</span>
-              <span className="ml-2 text-gray-600">v</span>
+              <span className="dropdown-chevron">˅</span>
             </button>
             <BlockDropdownMenu isOpen={isBackdropMenuOpen} triggerRef={backdropMenuTriggerRef} width={176}>
               {availableBackdrops.map((backdrop) => (
@@ -855,11 +963,11 @@ const Block = ({
               ref={soundMenuTriggerRef}
               type="button"
               onClick={() => setIsSoundMenuOpen((isOpen) => !isOpen)}
-              className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
+              className={`${DROPDOWN_PILL_CLASSNAME} w-20`}
               style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
             >
               <span className="truncate">{selectedSoundOption?.name || 'Sound'}</span>
-              <span className="ml-2 text-gray-600">v</span>
+              <span className="dropdown-chevron">˅</span>
             </button>
             <BlockDropdownMenu isOpen={isSoundMenuOpen} triggerRef={soundMenuTriggerRef} width={176}>
               {availableSounds.map((sound) => (
@@ -925,11 +1033,11 @@ const Block = ({
                 }}
                 type="button"
                 onClick={() => setActiveVariableMenu((current) => current === 'set-variable' ? null : 'set-variable')}
-                className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm mr-1"
+                className={`${DROPDOWN_PILL_CLASSNAME} mr-1 w-20`}
                 style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
               >
                 <span className="truncate">{selectedVariableName || 'variable'}</span>
-                <span className="ml-2 text-gray-600">v</span>
+                <span className="dropdown-chevron">˅</span>
               </button>
               <BlockDropdownMenu isOpen={activeVariableMenu === 'set-variable'} triggerRef={{ current: variableMenuTriggerRefs.current['set-variable'] }} width={176}>
                 {availableVariables.map((variableName) => (
@@ -952,7 +1060,7 @@ const Block = ({
               type="text"
               value={value?.input ?? ''}
               onChange={(event) => handleInputChange(event, 'input')}
-              className="w-16 p-1 text-black rounded-full"
+              className={`${inputClassName} w-16`}
               style={{ fontSize: '0.75rem' }}
             />
           </>
@@ -972,11 +1080,11 @@ const Block = ({
                 }}
                 type="button"
                 onClick={() => setActiveVariableMenu((current) => current === 'change-variable' ? null : 'change-variable')}
-                className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm mr-1"
+                className={`${DROPDOWN_PILL_CLASSNAME} mr-1 w-20`}
                 style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
               >
                 <span className="truncate">{selectedVariableName || 'variable'}</span>
-                <span className="ml-2 text-gray-600">v</span>
+                <span className="dropdown-chevron">˅</span>
               </button>
               <BlockDropdownMenu isOpen={activeVariableMenu === 'change-variable'} triggerRef={{ current: variableMenuTriggerRefs.current['change-variable'] }} width={176}>
                 {availableVariables.map((variableName) => (
@@ -999,7 +1107,7 @@ const Block = ({
               type="number"
               value={value?.amount ?? ''}
               onChange={(event) => handleInputChange(event, 'amount')}
-              className="w-14 p-1 text-black rounded-full"
+              className={`${inputClassName} w-14`}
               style={{ fontSize: '0.75rem' }}
             />
           </>
@@ -1011,7 +1119,7 @@ const Block = ({
               type="text"
               value={value?.item ?? ''}
               onChange={(event) => handleInputChange(event, 'item')}
-              className="w-14 p-1 text-black rounded-full mr-1"
+              className={`${inputClassName} mr-1 w-14`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>to list</span>
@@ -1027,11 +1135,11 @@ const Block = ({
                 }}
                 type="button"
                 onClick={() => setActiveListMenu((current) => current === 'add-to-list' ? null : 'add-to-list')}
-                className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
+                className={`${DROPDOWN_PILL_CLASSNAME} w-20`}
                 style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
               >
                 <span className="truncate">{selectedListName || 'list'}</span>
-                <span className="ml-2 text-gray-600">v</span>
+                <span className="dropdown-chevron">˅</span>
               </button>
               <BlockDropdownMenu isOpen={activeListMenu === 'add-to-list'} triggerRef={{ current: listMenuTriggerRefs.current['add-to-list'] }} width={176}>
                 {availableLists.map((listName) => (
@@ -1058,7 +1166,7 @@ const Block = ({
               type="number"
               value={value?.index ?? ''}
               onChange={(event) => handleInputChange(event, 'index')}
-              className="w-12 p-1 text-black rounded-full mr-1"
+              className={`${inputClassName} mr-1 w-12`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>of list</span>
@@ -1074,11 +1182,11 @@ const Block = ({
                 }}
                 type="button"
                 onClick={() => setActiveListMenu((current) => current === 'delete-from-list' ? null : 'delete-from-list')}
-                className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
+                className={`${DROPDOWN_PILL_CLASSNAME} w-20`}
                 style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
               >
                 <span className="truncate">{selectedListName || 'list'}</span>
-                <span className="ml-2 text-gray-600">v</span>
+                <span className="dropdown-chevron">˅</span>
               </button>
               <BlockDropdownMenu isOpen={activeListMenu === 'delete-from-list'} triggerRef={{ current: listMenuTriggerRefs.current['delete-from-list'] }} width={176}>
                 {availableLists.map((listName) => (
@@ -1113,11 +1221,11 @@ const Block = ({
                 }}
                 type="button"
                 onClick={() => setActiveListMenu((current) => current === 'delete-all-of-list' ? null : 'delete-all-of-list')}
-                className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
+                className={`${DROPDOWN_PILL_CLASSNAME} w-20`}
                 style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
               >
                 <span className="truncate">{selectedListName || 'list'}</span>
-                <span className="ml-2 text-gray-600">v</span>
+                <span className="dropdown-chevron">˅</span>
               </button>
               <BlockDropdownMenu isOpen={activeListMenu === 'delete-all-of-list'} triggerRef={{ current: listMenuTriggerRefs.current['delete-all-of-list'] }} width={176}>
                 {availableLists.map((listName) => (
@@ -1144,7 +1252,7 @@ const Block = ({
               type="text"
               value={value?.item ?? ''}
               onChange={(event) => handleInputChange(event, 'item')}
-              className="w-14 p-1 text-black rounded-full mr-1"
+              className={`${inputClassName} mr-1 w-14`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>at</span>
@@ -1152,7 +1260,7 @@ const Block = ({
               type="number"
               value={value?.index ?? ''}
               onChange={(event) => handleInputChange(event, 'index')}
-              className="w-12 p-1 text-black rounded-full mr-1"
+              className={`${inputClassName} mr-1 w-12`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>of</span>
@@ -1168,11 +1276,11 @@ const Block = ({
                 }}
                 type="button"
                 onClick={() => setActiveListMenu((current) => current === 'insert-at-list' ? null : 'insert-at-list')}
-                className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm"
+                className={`${DROPDOWN_PILL_CLASSNAME} w-20`}
                 style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
               >
                 <span className="truncate">{selectedListName || 'list'}</span>
-                <span className="ml-2 text-gray-600">v</span>
+                <span className="dropdown-chevron">˅</span>
               </button>
               <BlockDropdownMenu isOpen={activeListMenu === 'insert-at-list'} triggerRef={{ current: listMenuTriggerRefs.current['insert-at-list'] }} width={176}>
                 {availableLists.map((listName) => (
@@ -1199,7 +1307,7 @@ const Block = ({
               type="number"
               value={value?.index ?? ''}
               onChange={(event) => handleInputChange(event, 'index')}
-              className="w-12 p-1 text-black rounded-full mr-1"
+              className={`${inputClassName} mr-1 w-12`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>of</span>
@@ -1215,11 +1323,11 @@ const Block = ({
                 }}
                 type="button"
                 onClick={() => setActiveListMenu((current) => current === 'replace-item-in-list' ? null : 'replace-item-in-list')}
-                className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm mr-1"
+                className={`${DROPDOWN_PILL_CLASSNAME} mr-1 w-20`}
                 style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
               >
                 <span className="truncate">{selectedListName || 'list'}</span>
-                <span className="ml-2 text-gray-600">v</span>
+                <span className="dropdown-chevron">˅</span>
               </button>
               <BlockDropdownMenu isOpen={activeListMenu === 'replace-item-in-list'} triggerRef={{ current: listMenuTriggerRefs.current['replace-item-in-list'] }} width={176}>
                 {availableLists.map((listName) => (
@@ -1242,7 +1350,7 @@ const Block = ({
               type="text"
               value={value?.item ?? ''}
               onChange={(event) => handleInputChange(event, 'item')}
-              className="w-14 p-1 text-black rounded-full"
+              className={`${inputClassName} w-14`}
               style={{ fontSize: '0.75rem' }}
             />
           </>
@@ -1255,7 +1363,7 @@ const Block = ({
               min={0}
               value={value}
               onChange={handleInputChange}
-              className="w-12 p-1 text-black rounded-full mr-1"
+              className={`${inputClassName} mr-1 w-12`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="whitespace-nowrap" style={{ fontSize: '0.75rem' }}>seconds</span>
@@ -1269,7 +1377,7 @@ const Block = ({
               min={0}
               value={value?.times ?? ''}
               onChange={(event) => handleInputChange(event, 'times')}
-              className="w-12 p-1 text-black rounded-full mr-1"
+              className={`${inputClassName} mr-1 w-12`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="whitespace-nowrap" style={{ fontSize: '0.75rem' }}>times</span>
@@ -1627,11 +1735,11 @@ const Block = ({
                 ref={mathMenuTriggerRef}
                 type="button"
                 onClick={() => setIsMathMenuOpen((isOpen) => !isOpen)}
-                className="bg-white text-black rounded-full px-2 h-6 w-20 flex items-center justify-between shadow-sm mr-1"
+                className={`${DROPDOWN_PILL_CLASSNAME} mr-1 w-20`}
                 style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
               >
                 <span className="truncate">{value.fn}</span>
-                <span className="ml-2 text-gray-600">v</span>
+                <span className="dropdown-chevron">˅</span>
               </button>
               <BlockDropdownMenu isOpen={isMathMenuOpen} triggerRef={mathMenuTriggerRef} width={96}>
                 {MATH_FUNCTION_OPTIONS.map((option) => (
@@ -1721,16 +1829,30 @@ const Block = ({
 
   if ((isEventTriggerBlock || isControlContainerBlock) && isWorkspaceBlock) {
     return (
-      <div
-        style={{ maxWidth: 280 }}
-        ref={blockRef}
-        className={`p-1 m-1 rounded ${isDraggable ? 'cursor-move' : ''} ${
-          type === EVENTS ? 'bg-yellow-500' : type === CONTROLS ? 'bg-amber-500' : 'bg-purple-500'
-        } text-white ${isDragging ? 'opacity-50' : 'opacity-100'}`}
-      >
-        {blockContent}
+      <RootWrapper>
         <div
-          ref={nestedDropRef}
+          style={{ maxWidth: 280 }}
+          ref={attachBlockRef}
+          onClick={() => onSelect?.(id)}
+          className={rootClassName}
+        >
+          {isWorkspaceBlock && onRequestRemove ? (
+            <Tooltip content="Delete block" shortcut="Del">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onRequestRemove(id);
+                }}
+                className="block-delete-button absolute right-1 top-1 hidden items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm group-hover:flex"
+              >
+                ×
+              </button>
+            </Tooltip>
+          ) : null}
+          {blockContent}
+        <div
+          ref={attachNestedDropRef}
           className={`ml-4 mt-2 min-h-16 rounded border-2 border-dashed p-2 ${
             isNestedOver ? 'bg-amber-300 border-white' : 'bg-amber-400 border-amber-200'
           }`}
@@ -1768,13 +1890,18 @@ const Block = ({
                 onOperatorSlotDrop={onOperatorSlotDrop}
                 onOperatorValidationMessage={onOperatorValidationMessage}
                 onDeleteVariableEntity={onDeleteVariableEntity}
+                selectedBlockId={selectedBlockId}
+                onSelect={onSelect}
+                onRequestRemove={onRequestRemove}
+                removingBlockIds={removingBlockIds}
+                recentlyAddedBlockIds={recentlyAddedBlockIds}
               />
             ))
           )}
         </div>
         {action === IF_THEN_ELSE && (
           <div
-            ref={elseNestedDropRef}
+            ref={attachElseNestedDropRef}
             className={`ml-4 mt-2 min-h-16 rounded border-2 border-dashed p-2 ${
               isElseNestedOver ? 'bg-amber-300 border-white' : 'bg-amber-400 border-amber-200'
             }`}
@@ -1813,25 +1940,46 @@ const Block = ({
                   onOperatorSlotDrop={onOperatorSlotDrop}
                   onOperatorValidationMessage={onOperatorValidationMessage}
                   onDeleteVariableEntity={onDeleteVariableEntity}
+                  selectedBlockId={selectedBlockId}
+                  onSelect={onSelect}
+                  onRequestRemove={onRequestRemove}
+                  removingBlockIds={removingBlockIds}
+                  recentlyAddedBlockIds={recentlyAddedBlockIds}
                 />
               ))
             )}
           </div>
         )}
-      </div>
+        </div>
+      </RootWrapper>
     );
   }
 
   return (
-    <div
-      style={{ maxWidth: 220 }}
-      ref={blockRef}
-      className={`p-1 m-1 rounded ${isDraggable ? 'cursor-move' : ''} flex items-center ${action === BROADCAST_MESSAGE_FOR ? 'flex-wrap gap-y-1' : ''} ${
-        type === MOTION ? 'bg-blue-500' : type === SOUND ? 'bg-pink-500' : type === SPRITE ? 'bg-orange-500' : type === EVENTS ? 'bg-yellow-500' : type === CONTROLS ? 'bg-amber-500' : type === OPERATORS ? 'bg-green-500' : type === VARIABLES ? 'bg-orange-600' : 'bg-purple-500'
-      } text-white ${isDragging ? 'opacity-50' : 'opacity-100'}`}
-    >
-      {blockContent}
-    </div>
+    <RootWrapper>
+      <div
+        style={{ maxWidth: 220 }}
+        ref={attachBlockRef}
+        onClick={() => onSelect?.(id)}
+        className={`${rootClassName} flex items-center ${action === BROADCAST_MESSAGE_FOR ? 'flex-wrap gap-y-1' : ''} ${!isWorkspaceBlock ? 'block-hover-lift' : ''}`}
+      >
+        {isWorkspaceBlock && onRequestRemove ? (
+          <Tooltip content="Delete block" shortcut="Del">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onRequestRemove(id);
+              }}
+              className="block-delete-button absolute right-1 top-1 hidden items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm group-hover:flex"
+            >
+              ×
+            </button>
+          </Tooltip>
+        ) : null}
+        {blockContent}
+      </div>
+    </RootWrapper>
   );
 };
 
