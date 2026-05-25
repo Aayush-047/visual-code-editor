@@ -67,7 +67,7 @@ const OPERATOR_NUMBER_MIN = -1000000;
 const OPERATOR_NUMBER_MAX = 1000000;
 const MATH_FUNCTION_OPTIONS = ['abs', 'floor', 'ceiling', 'sqrt', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'ln', 'log', 'e^', '10^'];
 const DROPDOWN_MENU_MAX_HEIGHT = 176;
-const INPUT_BASE_CLASSNAME = 'themed-input-pill rounded-full border border-transparent px-2 py-1 text-black outline-none transition';
+const INPUT_BASE_CLASSNAME = 'themed-input-pill block-input rounded-full border border-transparent px-2 py-1 font-medium text-black outline-none transition';
 const WORKSPACE_INPUT_CLASSNAME = 'focus:border-blue-500 focus:ring-2 focus:ring-blue-200';
 const PALETTE_INPUT_CLASSNAME = 'focus:border-slate-300';
 const DROPDOWN_PILL_CLASSNAME = 'dropdown-pill flex items-center justify-between gap-2 rounded-full bg-white px-2 text-black shadow-sm';
@@ -736,14 +736,16 @@ const Block = ({
   const resolvedIsSelected = isSelected || selectedBlockId === id;
   const resolvedIsDeleting = isDeleting || removingBlockIds.includes(id);
   const resolvedIsNewlyPlaced = isNewlyPlaced || recentlyAddedBlockIds.includes(id);
-  const rootClassName = `group relative m-1 rounded-xl p-2 text-white shadow-sm ${
+  const rootClassName = `block group relative my-1 rounded-xl text-white shadow-sm ${
     isDraggable ? 'drag-card' : ''
   } ${wrapperColorClassName} ${isDragging ? 'opacity-50' : 'opacity-100'} ${
     isWorkspaceBlock ? 'workspace-block-drop' : ''
   } ${resolvedIsNewlyPlaced ? 'workspace-block-enter' : ''} ${resolvedIsDeleting ? 'workspace-block-exit' : ''} ${
     showSnapIndicators || isTopLevelOver ? 'snap-indicator-active' : ''
   } ${minBlockHeightClassName} ${
-    resolvedIsSelected ? 'ring-[2px] ring-blue-500 shadow-[0_0_0_4px_rgba(59,130,246,0.15)]' : ''
+    resolvedIsSelected ? 'selected outline outline-2 outline-blue-500 shadow-[0_0_0_4px_rgba(59,130,246,0.15)]' : ''
+  } ${type === CONTROLS ? 'block-control' : ''} ${isWorkspaceBlock ? 'workspace-block' : 'palette-block'} ${
+    isDragging ? 'dragging' : ''
   }`;
 
   const RootWrapper = ({ children }) => eventTooltip ? (
@@ -752,7 +754,7 @@ const Block = ({
 
   const blockContent = (
     <>
-      <div className="flex items-center flex-wrap gap-y-1">
+      <div className="flex items-center flex-wrap gap-x-1 gap-y-1">
         {!isOperatorBlock && type !== VARIABLES && (
           <span className="mr-2" style={{ fontSize: '0.75rem' }}>
             {soundIcon ? `${soundIcon} ${blockLabel}` : blockLabel}
@@ -765,7 +767,7 @@ const Block = ({
             max={(action === SET_VOLUME || action === WHEN_LOUDNESS_GREATER_THAN) ? 100 : undefined}
             value={value}
             onChange={handleInputChange}
-            className={`${inputClassName} w-12`}
+            className={`${inputClassName} w-14 ${isOperatorBlock ? 'bg-white/85 text-[#1a1a1a]' : ''}`}
             style={{ fontSize: '0.75rem' }}
           />
         )}
@@ -849,7 +851,7 @@ const Block = ({
               type="number"
               value={value[0]}
               onChange={(e) => handleInputChange(e, 0)}
-              className={`${inputClassName} mr-1 w-12`}
+              className={`${inputClassName} mr-1 w-14`}
               placeholder="X"
               style={{ fontSize: '0.75rem' }}
             />
@@ -857,7 +859,7 @@ const Block = ({
               type="number"
               value={value[1]}
               onChange={(e) => handleInputChange(e, 1)}
-              className={`${inputClassName} w-12`}
+              className={`${inputClassName} w-14`}
               placeholder="Y"
               style={{ fontSize: '0.75rem' }}
             />
@@ -887,7 +889,7 @@ const Block = ({
               type="number"
               value={value.duration}
               onChange={(e) => handleInputChange(e, 'duration')}
-              className={`${inputClassName} w-12`}
+              className={`${inputClassName} w-14`}
               placeholder="Seconds"
               style={{ fontSize: '0.75rem' }}
             />
@@ -917,6 +919,7 @@ const Block = ({
               type="button"
               onClick={() => setIsBackdropMenuOpen((isOpen) => !isOpen)}
               className={`${DROPDOWN_PILL_CLASSNAME} w-20`}
+              title={eventTooltip}
               style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
             >
               <span className="truncate">{selectedBackdropOption?.name || 'Backdrop'}</span>
@@ -1107,7 +1110,7 @@ const Block = ({
               type="number"
               value={value?.amount ?? ''}
               onChange={(event) => handleInputChange(event, 'amount')}
-              className={`${inputClassName} w-14`}
+              className={`${inputClassName} w-16`}
               style={{ fontSize: '0.75rem' }}
             />
           </>
@@ -1119,7 +1122,7 @@ const Block = ({
               type="text"
               value={value?.item ?? ''}
               onChange={(event) => handleInputChange(event, 'item')}
-              className={`${inputClassName} mr-1 w-14`}
+              className={`${inputClassName} mr-1 w-16`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>to list</span>
@@ -1135,7 +1138,7 @@ const Block = ({
                 }}
                 type="button"
                 onClick={() => setActiveListMenu((current) => current === 'add-to-list' ? null : 'add-to-list')}
-                className={`${DROPDOWN_PILL_CLASSNAME} w-20`}
+              className={`${DROPDOWN_PILL_CLASSNAME} w-20`}
                 style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
               >
                 <span className="truncate">{selectedListName || 'list'}</span>
@@ -1166,7 +1169,7 @@ const Block = ({
               type="number"
               value={value?.index ?? ''}
               onChange={(event) => handleInputChange(event, 'index')}
-              className={`${inputClassName} mr-1 w-12`}
+              className={`${inputClassName} mr-1 w-14`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>of list</span>
@@ -1252,7 +1255,7 @@ const Block = ({
               type="text"
               value={value?.item ?? ''}
               onChange={(event) => handleInputChange(event, 'item')}
-              className={`${inputClassName} mr-1 w-14`}
+              className={`${inputClassName} mr-1 w-16`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>at</span>
@@ -1260,7 +1263,7 @@ const Block = ({
               type="number"
               value={value?.index ?? ''}
               onChange={(event) => handleInputChange(event, 'index')}
-              className={`${inputClassName} mr-1 w-12`}
+              className={`${inputClassName} mr-1 w-14`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>of</span>
@@ -1307,7 +1310,7 @@ const Block = ({
               type="number"
               value={value?.index ?? ''}
               onChange={(event) => handleInputChange(event, 'index')}
-              className={`${inputClassName} mr-1 w-12`}
+              className={`${inputClassName} mr-1 w-14`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>of</span>
@@ -1363,7 +1366,7 @@ const Block = ({
               min={0}
               value={value}
               onChange={handleInputChange}
-              className={`${inputClassName} mr-1 w-12`}
+              className={`${inputClassName} mr-1 w-14`}
               style={{ fontSize: '0.75rem' }}
             />
             <span className="whitespace-nowrap" style={{ fontSize: '0.75rem' }}>seconds</span>
@@ -1844,7 +1847,7 @@ const Block = ({
                   event.stopPropagation();
                   onRequestRemove(id);
                 }}
-                className="block-delete-button absolute right-1 top-1 hidden items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm group-hover:flex"
+                className="block-delete-button absolute right-1 top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-white/90 text-[13px] leading-none text-slate-700 shadow-sm group-hover:flex"
               >
                 ×
               </button>
@@ -1961,7 +1964,7 @@ const Block = ({
         style={{ maxWidth: 220 }}
         ref={attachBlockRef}
         onClick={() => onSelect?.(id)}
-        className={`${rootClassName} flex items-center ${action === BROADCAST_MESSAGE_FOR ? 'flex-wrap gap-y-1' : ''} ${!isWorkspaceBlock ? 'block-hover-lift' : ''}`}
+        className={`${rootClassName} flex items-center ${action === BROADCAST_MESSAGE_FOR ? 'flex-wrap gap-y-1' : ''} ${!isWorkspaceBlock ? 'block-hover-lift transition-[filter] duration-120 ease-out' : ''} ${type === OPERATORS ? 'block-operators' : ''}`}
       >
         {isWorkspaceBlock && onRequestRemove ? (
           <Tooltip content="Delete block" shortcut="Del">
@@ -1971,7 +1974,7 @@ const Block = ({
                 event.stopPropagation();
                 onRequestRemove(id);
               }}
-              className="block-delete-button absolute right-1 top-1 hidden items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm group-hover:flex"
+              className="block-delete-button absolute right-1 top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-white/90 text-[13px] leading-none text-slate-700 shadow-sm group-hover:flex"
             >
               ×
             </button>

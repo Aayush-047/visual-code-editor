@@ -391,14 +391,6 @@ const BackdropSwatch = ({
   </div>
 );
 
-const CountBadge = ({ children, className = '' }) => (
-  <span
-    className={`inline-flex min-w-6 items-center justify-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 ${className}`}
-  >
-    {children}
-  </span>
-);
-
 const AssetCategoryDropdown = ({
   value,
   options,
@@ -488,141 +480,132 @@ const PreviewControls = ({
   compact = false,
   shouldPulseRun = false,
 }) => {
-  const replayMenuTriggerRef = useRef(null);
-  const [isReplayMenuOpen, setIsReplayMenuOpen] = useState(false);
+  const [isReplayModalOpen, setIsReplayModalOpen] = useState(false);
+  const [pendingReplayBlockId, setPendingReplayBlockId] = useState(selectedReplayBlockId);
 
   useEffect(() => {
     if (replayableBlocks.length === 0 || isRunning) {
-      setIsReplayMenuOpen(false);
+      setIsReplayModalOpen(false);
     }
   }, [isRunning, replayableBlocks.length]);
 
   useEffect(() => {
-    if (!isReplayMenuOpen) {
+    if (!isReplayModalOpen) {
       return undefined;
     }
 
-    const handlePointerDown = (event) => {
-      if (
-        replayMenuTriggerRef.current?.contains(event.target) ||
-        event.target.closest('[data-floating-dropdown-menu="true"]')
-      ) {
-        return;
-      }
-
-      setIsReplayMenuOpen(false);
-    };
-
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
-        setIsReplayMenuOpen(false);
+        setIsReplayModalOpen(false);
       }
     };
 
-    document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('keydown', handleEscape);
 
     return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [isReplayMenuOpen]);
+  }, [isReplayModalOpen]);
+
+  useEffect(() => {
+    setPendingReplayBlockId(selectedReplayBlockId || replayableBlocks[0]?.id || '');
+  }, [replayableBlocks, selectedReplayBlockId]);
 
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${compact ? '' : 'mt-4 justify-end'}`}>
-      <button
-        type="button"
-        onClick={runCode}
-        disabled={isRunning}
-        className={`flex items-center rounded-xl bg-green-500 px-4 py-2 text-white ${isRunning ? 'cursor-not-allowed opacity-50' : ''} ${shouldPulseRun ? 'run-pulse' : ''}`}
-      >
-        {isRunning ? (
-          <Loader2 size={16} className="mr-2 animate-spin" />
-        ) : (
-          <Play size={16} className="mr-2" />
-        )}
-        Run Code
-      </button>
-      <div className="relative">
+    <>
+      <div className={`bottom-bar ${compact ? '' : 'mt-4 justify-start'} max-[479px]:justify-start`}>
         <button
-          ref={replayMenuTriggerRef}
           type="button"
-          onClick={() => {
-            if (replayableBlocks.length === 0 || isRunning) {
-              return;
-            }
-
-            setIsReplayMenuOpen((open) => !open);
-          }}
-          disabled={replayableBlocks.length === 0 || isRunning}
-          className={`flex h-10 min-w-52 items-center justify-between gap-3 rounded-full border border-gray-300 bg-white px-4 text-sm text-black shadow-sm ${
-            replayableBlocks.length === 0 || isRunning ? 'cursor-not-allowed opacity-50' : ''
-          }`}
+          onClick={runCode}
+          disabled={isRunning}
+          className={`btn-run-code flex items-center rounded-xl bg-green-500 text-white ${isRunning ? 'cursor-not-allowed opacity-50' : ''} ${shouldPulseRun ? 'run-pulse' : ''}`}
         >
-          <span className="truncate">
-            {selectedReplayBlock
-              ? `${describeBlock(selectedReplayBlock)} · 1 block`
-              : 'No replay blocks'}
-          </span>
-          <ChevronDown
-            size={14}
-            className={`flex-shrink-0 transition ${isReplayMenuOpen ? 'rotate-180' : ''}`}
-          />
-        </button>
-        <FloatingDropdownMenu
-          isOpen={isReplayMenuOpen}
-          triggerRef={replayMenuTriggerRef}
-          width={240}
-          placement="bottom"
-        >
-          {replayableBlocks.length === 0 ? (
-            <div className="px-4 py-2 text-sm text-gray-500">No replay blocks</div>
+          {isRunning ? (
+            <Loader2 size={16} className="mr-2 animate-spin" />
           ) : (
-            replayableBlocks.map((block, blockIndex) => (
+            <Play size={16} className="mr-2" />
+          )}
+          Run Code
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsReplayModalOpen(true)}
+          disabled={replayableBlocks.length === 0 || isRunning}
+          className={`flex items-center rounded bg-blue-500 px-3 py-2 text-white ${replayableBlocks.length === 0 || isRunning ? 'cursor-not-allowed opacity-50' : ''}`}
+        >
+          <Rewind size={16} className="mr-1" /> Replay
+        </button>
+        <button
+          type="button"
+          onClick={stopCurrentSprite}
+          disabled={!isRunning}
+          className={`preview-stop-current rounded px-3 py-2 text-white ${!isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          Stop Sprite
+        </button>
+        <button
+          type="button"
+          onClick={stopAllCode}
+          disabled={!isRunning}
+          className={`preview-stop-all rounded px-3 py-2 text-white ${!isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          Stop All
+        </button>
+      </div>
+      {isReplayModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl">
+            <div className="mb-3">
+              <h2 className="text-base font-bold text-slate-900">Replay Block</h2>
+              <p className="text-sm text-slate-500">Choose which block to replay.</p>
+            </div>
+            <div className="max-h-72 space-y-2 overflow-y-auto">
+              {replayableBlocks.map((block, blockIndex) => (
+                <button
+                  key={block.id}
+                  type="button"
+                  onClick={() => setPendingReplayBlockId(block.id)}
+                  className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm transition ${
+                    pendingReplayBlockId === block.id
+                      ? 'border-blue-500 bg-blue-50 text-blue-900'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="truncate">{describeBlock(block)}</span>
+                  <span className="ml-3 text-xs font-semibold text-slate-400">{blockIndex + 1}</span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
               <button
-                key={block.id}
+                type="button"
+                onClick={() => setIsReplayModalOpen(false)}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
                 type="button"
                 onClick={() => {
-                  setSelectedReplayBlockId(block.id);
-                  setIsReplayMenuOpen(false);
+                  const blockToReplay =
+                    replayableBlocks.find((block) => block.id === pendingReplayBlockId) ||
+                    replayableBlocks[0];
+                  setSelectedReplayBlockId(blockToReplay?.id || '');
+                  setIsReplayModalOpen(false);
+                  void replaySelectedBlock(blockToReplay);
                 }}
-                className={`block w-full px-4 py-2 text-left text-sm hover:bg-blue-50 ${
-                  selectedReplayBlock?.id === block.id
-                    ? 'bg-blue-100 font-semibold text-blue-800'
-                    : 'text-gray-800'
+                disabled={!pendingReplayBlockId}
+                className={`rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white ${
+                  !pendingReplayBlockId ? 'cursor-not-allowed opacity-50' : ''
                 }`}
               >
-                {blockIndex + 1}. {describeBlock(block)}
+                Replay
               </button>
-            ))
-          )}
-        </FloatingDropdownMenu>
-      </div>
-      <button
-        type="button"
-        onClick={() => void replaySelectedBlock()}
-        disabled={!selectedReplayBlock || isRunning}
-        className={`rounded bg-blue-500 p-2 text-white flex items-center ${!selectedReplayBlock || isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        <Rewind size={16} className="mr-1" /> Replay
-      </button>
-      <button
-        type="button"
-        onClick={stopCurrentSprite}
-        disabled={!isRunning}
-        className={`rounded bg-amber-500 px-3 py-2 text-white ${!isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        Stop Current Sprite
-      </button>
-      <button
-        type="button"
-        onClick={stopAllCode}
-        disabled={!isRunning}
-        className={`rounded bg-rose-500 px-3 py-2 text-white ${!isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        Stop All
-      </button>
-    </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
@@ -941,12 +924,12 @@ const removeVariableReporterBlocks = (blocksToUpdate, entityType, entityName) =>
     }));
 
 const VisualCodeEditor = () => {
-  const [toastMessage, setToastMessage] = useState('');
+  const [toasts, setToasts] = useState([]);
   const spriteRef = useRef(null);
   const previewRef = useRef(null);
   const spriteLibrarySearchRef = useRef(null);
   const backdropLibrarySearchRef = useRef(null);
-  const toastTimeoutRef = useRef(null);
+  const toastTimeoutRef = useRef([]);
   const removalTimeoutsRef = useRef([]);
   const blockHistoryRef = useRef({});
   const spriteDragRef = useRef({ isDragging: false, hasMoved: false, offsetX: 0, offsetY: 0 });
@@ -976,7 +959,7 @@ const VisualCodeEditor = () => {
   const [removingBlockIds, setRemovingBlockIds] = useState([]);
   const [recentlyAddedBlockIds, setRecentlyAddedBlockIds] = useState([]);
   const [hasDismissedRunNudge, setHasDismissedRunNudge] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(getInitialTheme);
   const [isVariableModalOpen, setIsVariableModalOpen] = useState(false);
   const [variableModalType, setVariableModalType] = useState('variable');
   const [pendingVariableName, setPendingVariableName] = useState('');
@@ -1372,17 +1355,16 @@ const VisualCodeEditor = () => {
     'all',
     ...Array.from(new Set(backdropLibrary.map(getBackdropCategory))).sort(),
   ];
-  const showToast = useCallback((message) => {
-    setToastMessage(message);
+  const showToast = useCallback((message, type = 'info', duration = 3000) => {
+    const id = `${Date.now()}-${Math.random()}`;
+    setToasts((prevToasts) => [...prevToasts, { id, message, type }]);
 
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-    }
+    const timeoutId = window.setTimeout(() => {
+      setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== id));
+      toastTimeoutRef.current = toastTimeoutRef.current.filter((activeId) => activeId !== timeoutId);
+    }, duration);
 
-    toastTimeoutRef.current = setTimeout(() => {
-      setToastMessage('');
-      toastTimeoutRef.current = null;
-    }, 2500);
+    toastTimeoutRef.current.push(timeoutId);
   }, []);
 
   const ensureLZStringLoaded = useCallback(() => {
@@ -1555,6 +1537,12 @@ const VisualCodeEditor = () => {
   useEffect(() => {
     spritesRef.current = sprites;
   }, [sprites]);
+
+  useEffect(() => {
+    const theme = isDarkMode ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+    window.localStorage.setItem('theme', theme);
+  }, [isDarkMode]);
 
   useEffect(() => {
     if (!isFileMenuOpen && !isAssetsMenuOpen && !isSpriteSelectorOpen && !isBackdropSelectorOpen) {
@@ -1957,7 +1945,7 @@ const VisualCodeEditor = () => {
       const sharedUrl = `${window.location.origin}${window.location.pathname}${window.location.search}#${compressedProject}`;
       window.history.replaceState(null, '', `#${compressedProject}`);
       await navigator.clipboard.writeText(sharedUrl);
-      showToast('Link copied!');
+      showToast('Link copied to clipboard!', 'success');
     } catch (error) {
       showToast(error.message || 'Unable to share this project.');
     }
@@ -2008,10 +1996,26 @@ const VisualCodeEditor = () => {
       setSelectedSpriteId(nextSprite.id);
       setActiveSidebarTab('sprite');
       setIsSpriteLibraryOpen(false);
+      setIsBackdropLibraryOpen(false);
       showToast(`${librarySprite.name} added.`);
     },
     [showToast]
   );
+
+  const openSpriteLibrary = useCallback(() => {
+    setIsBackdropLibraryOpen(false);
+    setIsSpriteLibraryOpen(true);
+  }, []);
+
+  const openBackdropLibrary = useCallback(() => {
+    setIsSpriteLibraryOpen(false);
+    setIsBackdropLibraryOpen(true);
+  }, []);
+
+  const closeLibraries = useCallback(() => {
+    setIsSpriteLibraryOpen(false);
+    setIsBackdropLibraryOpen(false);
+  }, []);
 
   const openSpriteUploadPicker = useCallback(() => {
     spriteFileInputRef.current?.click();
@@ -2197,6 +2201,14 @@ const VisualCodeEditor = () => {
     }
   }, [isBackdropLibraryOpen]);
 
+  useEffect(() => {
+    document.body.style.overflow = isSpriteLibraryOpen || isBackdropLibraryOpen ? 'hidden' : '';
+
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isBackdropLibraryOpen, isSpriteLibraryOpen]);
+
   useEffect(
     () => () => {
       removalTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
@@ -2268,14 +2280,14 @@ const VisualCodeEditor = () => {
       const newBlock = createWorkspaceBlock(item);
       mutateSelectedSpriteBlocks((prevBlocks) => [...prevBlocks, newBlock]);
       setSelectedReplayBlockId((currentId) => currentId || newBlock.id);
-      setSelectedBlockId(newBlock.id);
       setRecentlyAddedBlockIds((prevIds) => [...prevIds, newBlock.id]);
+      showToast('Block added.', 'info');
       const timeoutId = window.setTimeout(() => {
         setRecentlyAddedBlockIds((prevIds) => prevIds.filter((blockId) => blockId !== newBlock.id));
       }, 320);
       removalTimeoutsRef.current.push(timeoutId);
     },
-    [mutateSelectedSpriteBlocks]
+    [mutateSelectedSpriteBlocks, showToast]
   );
 
   const moveBlock = useCallback(
@@ -2322,12 +2334,8 @@ const VisualCodeEditor = () => {
 
   const requestRemoveBlock = useCallback(
     (id) => {
-      setRemovingBlockIds((prevIds) => (prevIds.includes(id) ? prevIds : [...prevIds, id]));
-      const timeoutId = window.setTimeout(() => {
-        setRemovingBlockIds((prevIds) => prevIds.filter((blockId) => blockId !== id));
-        handleRemoveBlock(id);
-      }, 180);
-      removalTimeoutsRef.current.push(timeoutId);
+      setRemovingBlockIds((prevIds) => prevIds.filter((blockId) => blockId !== id));
+      handleRemoveBlock(id);
     },
     [handleRemoveBlock]
   );
@@ -2984,6 +2992,7 @@ const VisualCodeEditor = () => {
     clearAllSpriteSpeechBubbles();
     setIsRunning(true);
     setHasDismissedRunNudge(true);
+    showToast('Running code...', 'info');
 
     try {
       await Promise.all(
@@ -2999,7 +3008,7 @@ const VisualCodeEditor = () => {
       setIsRunning(false);
       clearAllSpriteSpeechBubbles();
     }
-  }, [clearAllSpriteSpeechBubbles, isRunning, runBlockListForSprite, sprites]);
+  }, [clearAllSpriteSpeechBubbles, isRunning, runBlockListForSprite, showToast, sprites]);
 
   useEffect(() => {
     const handleEditorShortcuts = (event) => {
@@ -3080,8 +3089,10 @@ const VisualCodeEditor = () => {
     );
   }, [activeSpriteId, runMatchingEventBlocks]);
 
-  const replaySelectedBlock = useCallback(async () => {
-    if (!selectedReplayBlock) {
+  const replaySelectedBlock = useCallback(async (blockOverride = null) => {
+    const blockToReplay = blockOverride || selectedReplayBlock;
+
+    if (!blockToReplay) {
       showToast('Add a non-event block to replay.');
       return;
     }
@@ -3091,8 +3102,8 @@ const VisualCodeEditor = () => {
     setIsRunning(true);
 
     try {
-      await runBlockListForSprite(sessionId, activeSpriteId, [selectedReplayBlock]);
-      showToast(`Replayed ${describeBlock(selectedReplayBlock)}.`);
+      await runBlockListForSprite(sessionId, activeSpriteId, [blockToReplay]);
+      showToast(`Replayed ${describeBlock(blockToReplay)}.`);
     } finally {
       setIsRunning(false);
     }
@@ -3183,9 +3194,8 @@ const VisualCodeEditor = () => {
 
   useEffect(
     () => () => {
-      if (toastTimeoutRef.current) {
-        clearTimeout(toastTimeoutRef.current);
-      }
+      toastTimeoutRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
+      toastTimeoutRef.current = [];
     },
     []
   );
@@ -3313,7 +3323,7 @@ const VisualCodeEditor = () => {
       <div
         className={`editor-surface flex h-full min-h-0 flex-col ${isDarkMode ? 'theme-dark' : ''}`}
       >
-        <nav className="grid h-16 flex-shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-sky-900/60 bg-gradient-to-r from-sky-600 via-blue-700 to-indigo-800 px-5 shadow-sm">
+        <nav className="navbar grid h-16 flex-shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-sky-900/60 bg-gradient-to-r from-sky-600 via-blue-700 to-indigo-800 px-4 shadow-sm">
           <div className="flex min-w-0 flex-wrap items-center gap-1 justify-self-start">
             <div ref={fileMenuRef} className="relative">
               <button
@@ -3322,11 +3332,11 @@ const VisualCodeEditor = () => {
                   setIsAssetsMenuOpen(false);
                   setIsFileMenuOpen((open) => !open);
                 }}
-                className="flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+                className="topbar-action flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition hover:bg-white/10 hover:text-white"
                 aria-expanded={isFileMenuOpen}
                 aria-haspopup="menu"
               >
-                <FileText size={16} />
+                <FileText size={16} strokeWidth={1.5} className="current-color-icon" />
                 File
                 <ChevronDown
                   size={14}
@@ -3344,7 +3354,7 @@ const VisualCodeEditor = () => {
                     disabled={isProjectSaving}
                     className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-gray-800 hover:bg-blue-50 ${isProjectSaving ? 'cursor-not-allowed opacity-50' : ''}`}
                   >
-                    <Save size={15} className="text-blue-600" />
+                    <Save size={16} strokeWidth={1.5} className="current-color-icon text-blue-600" />
                     Save Project
                   </button>
                   <button
@@ -3356,7 +3366,7 @@ const VisualCodeEditor = () => {
                     disabled={isProjectLoading}
                     className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-gray-800 hover:bg-blue-50 ${isProjectLoading ? 'cursor-not-allowed opacity-50' : ''}`}
                   >
-                    <Upload size={15} className="text-blue-600" />
+                    <Upload size={16} strokeWidth={1.5} className="current-color-icon text-blue-600" />
                     Load Project
                   </button>
                 </div>
@@ -3369,11 +3379,11 @@ const VisualCodeEditor = () => {
                   setIsFileMenuOpen(false);
                   setIsAssetsMenuOpen((open) => !open);
                 }}
-                className="flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+                className="topbar-action flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition hover:bg-white/10 hover:text-white"
                 aria-expanded={isAssetsMenuOpen}
                 aria-haspopup="menu"
               >
-                <FolderOpen size={16} />
+                <FolderOpen size={16} strokeWidth={1.5} className="current-color-icon" />
                 Assets
                 <ChevronDown
                   size={14}
@@ -3386,22 +3396,22 @@ const VisualCodeEditor = () => {
                     type="button"
                     onClick={() => {
                       setIsAssetsMenuOpen(false);
-                      setIsSpriteLibraryOpen(true);
+                      openSpriteLibrary();
                     }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-gray-800 hover:bg-blue-50"
                   >
-                    <Shapes size={15} className="text-orange-500" />
+                    <Shapes size={16} strokeWidth={1.5} className="current-color-icon text-orange-500" />
                     Sprite Library
                   </button>
                   <button
                     type="button"
                     onClick={() => {
                       setIsAssetsMenuOpen(false);
-                      setIsBackdropLibraryOpen(true);
+                      openBackdropLibrary();
                     }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-gray-800 hover:bg-blue-50"
                   >
-                    <ImageIcon size={15} className="text-emerald-600" />
+                    <ImageIcon size={16} strokeWidth={1.5} className="current-color-icon text-emerald-600" />
                     Backdrop Library
                   </button>
                 </div>
@@ -3414,17 +3424,17 @@ const VisualCodeEditor = () => {
                 setIsAssetsMenuOpen(false);
                 void handleShareProject();
               }}
-              className="flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+              className="topbar-action flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition hover:bg-white/10 hover:text-white"
             >
-              <Link2 size={16} />
+              <Link2 size={16} strokeWidth={1.5} className="current-color-icon" />
               Share
             </button>
             <button
               type="button"
               onClick={() => setIsDarkMode((current) => !current)}
-              className="flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+              className="topbar-action flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition hover:bg-white/10 hover:text-white"
             >
-              {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+              {isDarkMode ? <Sun size={16} strokeWidth={1.5} className="current-color-icon" /> : <Moon size={16} strokeWidth={1.5} className="current-color-icon" />}
               {isDarkMode ? 'Light' : 'Dark'}
             </button>
           </div>
@@ -3552,28 +3562,30 @@ const VisualCodeEditor = () => {
         </nav>
         <div className="flex min-h-0 flex-1">
           {/* Sidebar */}
-          <div className="flex w-1/4 flex-col bg-slate-100/70 p-4">
+          <div className="sidebar-shell flex w-1/4 flex-col px-2 py-4">
             <div className="mb-4 overflow-x-auto pb-1">
-              <div className="inline-flex min-w-max items-end gap-4 border-b border-slate-200 bg-transparent px-1">
+              <div className="inline-flex min-w-max items-center gap-2 px-0.5">
                 <button
+                  draggable="false"
                   onClick={() => setActiveSidebarTab('blocks')}
-                  className={`flex flex-shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-1 py-2 text-sm font-semibold transition ${
+                  className={`tab-button flex flex-shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 text-sm font-semibold transition ${
                     activeSidebarTab === 'blocks'
-                      ? 'border-blue-500 text-blue-700'
-                      : 'border-transparent text-gray-700'
+                      ? 'tab-active'
+                      : ''
                   }`}
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded bg-blue-100 text-[11px] font-bold text-blue-700">
+                  <span className="tab-icon-chip flex h-5 w-5 items-center justify-center rounded text-[11px] font-bold">
                     {'</>'}
                   </span>
                   Code
                 </button>
                 <button
+                  draggable="false"
                   onClick={() => setActiveSidebarTab('sprite')}
-                  className={`flex flex-shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-1 py-2 text-sm font-semibold transition ${
+                  className={`tab-button flex flex-shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 text-sm font-semibold transition ${
                     activeSidebarTab === 'sprite'
-                      ? 'border-blue-500 text-blue-700'
-                      : 'border-transparent text-gray-700'
+                      ? 'tab-active'
+                      : ''
                   }`}
                 >
                   {selectedSprite ? (
@@ -3591,11 +3603,12 @@ const VisualCodeEditor = () => {
                   Sprite
                 </button>
                 <button
+                  draggable="false"
                   onClick={() => setActiveSidebarTab('backdrops')}
-                  className={`flex flex-shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-1 py-2 text-sm font-semibold transition ${
+                  className={`tab-button flex flex-shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 text-sm font-semibold transition ${
                     activeSidebarTab === 'backdrops'
-                      ? 'border-blue-500 text-blue-700'
-                      : 'border-transparent text-gray-700'
+                      ? 'tab-active'
+                      : ''
                   }`}
                 >
                   {selectedBackdrop ? (
@@ -3610,12 +3623,12 @@ const VisualCodeEditor = () => {
             </div>
 
             <div
-              className="overflow-y-auto pr-1"
+              className="overflow-x-auto overflow-y-auto pr-0"
               style={{ height: EDITOR_PANEL_HEIGHT, minHeight: EDITOR_PANEL_HEIGHT }}
             >
               {activeSidebarTab === 'blocks' && (
-                <div className="min-h-full rounded-xl border border-gray-200 bg-white/70 p-3 shadow-sm">
-                  <h2 className="mb-2 border-b border-slate-200 pb-2 pt-2 text-lg font-bold">
+                <div className="sidebar-panel min-h-full rounded-xl border px-2 py-3 shadow-sm">
+                  <h2 className="sidebar-section-heading mb-2 border-b pb-2 pt-2 text-lg font-bold">
                     Motion
                   </h2>
                   {sidebarBlocks
@@ -3639,7 +3652,7 @@ const VisualCodeEditor = () => {
                         onDeleteVariableEntity={handleDeleteVariableEntity}
                       />
                     ))}
-                  <h2 className="mb-2 mt-2 border-b border-slate-200 pb-2 pt-2 text-lg font-bold">
+                  <h2 className="sidebar-section-heading mb-2 mt-2 border-b pb-2 pt-2 text-lg font-bold">
                     Looks
                   </h2>
                   {sidebarBlocks
@@ -3663,7 +3676,7 @@ const VisualCodeEditor = () => {
                         onDeleteVariableEntity={handleDeleteVariableEntity}
                       />
                     ))}
-                  <h2 className="mb-2 mt-2 border-b border-slate-200 pb-2 pt-2 text-lg font-bold">
+                  <h2 className="sidebar-section-heading mb-2 mt-2 border-b pb-2 pt-2 text-lg font-bold">
                     Sound
                   </h2>
                   {sidebarBlocks
@@ -3687,7 +3700,7 @@ const VisualCodeEditor = () => {
                         onDeleteVariableEntity={handleDeleteVariableEntity}
                       />
                     ))}
-                  <h2 className="mb-2 mt-2 border-b border-slate-200 pb-2 pt-2 text-lg font-bold">
+                  <h2 className="sidebar-section-heading mb-2 mt-2 border-b pb-2 pt-2 text-lg font-bold">
                     Events
                   </h2>
                   {sidebarBlocks
@@ -3711,7 +3724,7 @@ const VisualCodeEditor = () => {
                         onDeleteVariableEntity={handleDeleteVariableEntity}
                       />
                     ))}
-                  <h2 className="mb-2 mt-2 border-b border-slate-200 pb-2 pt-2 text-lg font-bold">
+                  <h2 className="sidebar-section-heading mb-2 mt-2 border-b pb-2 pt-2 text-lg font-bold">
                     Control
                   </h2>
                   {sidebarBlocks
@@ -3735,7 +3748,7 @@ const VisualCodeEditor = () => {
                         onDeleteVariableEntity={handleDeleteVariableEntity}
                       />
                     ))}
-                  <h2 className="mb-2 mt-2 border-b border-slate-200 pb-2 pt-2 text-lg font-bold">
+                  <h2 className="sidebar-section-heading mb-2 mt-2 border-b pb-2 pt-2 text-lg font-bold">
                     Operators
                   </h2>
                   {sidebarBlocks
@@ -3760,21 +3773,21 @@ const VisualCodeEditor = () => {
                         onDeleteVariableEntity={handleDeleteVariableEntity}
                       />
                     ))}
-                  <h2 className="mb-2 mt-2 border-b border-slate-200 pb-2 pt-2 text-lg font-bold">
+                  <h2 className="sidebar-section-heading mb-2 mt-2 border-b pb-2 pt-2 text-lg font-bold">
                     Variables
                   </h2>
                   <div className="mb-2 ml-1 flex flex-col gap-2">
                     <button
                       type="button"
                       onClick={openVariableModal}
-                      className="w-36 rounded-lg border-2 border-orange-500 bg-transparent px-3 py-2 text-sm font-semibold text-orange-600 transition hover:bg-orange-500 hover:text-white"
+                      className="btn-create-variable w-36 rounded-lg border-2 border-orange-500 bg-transparent px-3 py-2 text-sm font-medium text-orange-600 transition hover:bg-orange-500 hover:text-white"
                     >
                       Create Variable
                     </button>
                     <button
                       type="button"
                       onClick={openListModal}
-                      className="w-36 rounded-lg border-2 border-orange-500 bg-transparent px-3 py-2 text-sm font-semibold text-orange-600 transition hover:bg-orange-500 hover:text-white"
+                      className="btn-create-list w-36 rounded-lg border-2 border-orange-500 bg-transparent px-3 py-2 text-sm font-medium text-orange-600 transition hover:bg-orange-500 hover:text-white"
                     >
                       Create List
                     </button>
@@ -3840,7 +3853,7 @@ const VisualCodeEditor = () => {
                   <div className="grid grid-cols-1 gap-3 mb-4">
                     <button
                       type="button"
-                      onClick={() => setIsSpriteLibraryOpen(true)}
+                      onClick={openSpriteLibrary}
                       className="flex min-h-[10rem] flex-col items-center justify-center rounded-xl border-2 border-dashed border-sky-300 bg-sky-50 text-sky-700 transition hover:border-sky-400 hover:bg-sky-100"
                     >
                       <span className="text-4xl font-light leading-none">+</span>
@@ -3924,7 +3937,7 @@ const VisualCodeEditor = () => {
                   <div className="grid grid-cols-1 gap-3">
                     <button
                       type="button"
-                      onClick={() => setIsBackdropLibraryOpen(true)}
+                      onClick={openBackdropLibrary}
                       className="flex min-h-[10rem] flex-col items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50 text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100"
                     >
                       <span className="text-4xl font-light leading-none">+</span>
@@ -4013,15 +4026,14 @@ const VisualCodeEditor = () => {
             ) : (
               <DroppableArea
                 onDrop={handleDrop}
+                onBackgroundClick={() => setSelectedBlockId('')}
                 isEmpty={!hasBlocks}
                 emptyState={
-                  <div className="pointer-events-none flex flex-col items-center gap-3 text-center text-[#AAAAAA]">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-300/80 bg-white/70 text-2xl">
-                      +
-                    </div>
-                    <div className="text-base font-semibold">
+                  <div className="pointer-events-none text-center">
+                    <div className="hint-circle">+</div>
+                    <p className="empty-hint-text text-base font-medium">
                       Drag blocks here and press Run Code
-                    </div>
+                    </p>
                   </div>
                 }
               >
@@ -4062,9 +4074,9 @@ const VisualCodeEditor = () => {
                   />
                 ))}
                 {hasBlocks && !hasDismissedRunNudge && (
-                  <div className="mt-4">
-                    <span className="inline-flex rounded-full bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm ring-1 ring-blue-200">
-                      Press Run Code to see it move →
+                  <div className="mt-1">
+                    <span className="workspace-nudge">
+                      Press Run Code
                     </span>
                   </div>
                 )}
@@ -4082,8 +4094,9 @@ const VisualCodeEditor = () => {
                   <button
                     type="button"
                     onClick={() => setIsPreviewExpanded(true)}
-                    className="tooltip-trigger-button rounded border border-gray-300 bg-white p-2 text-gray-800"
+                    className="tooltip-trigger-button rounded border border-[var(--border-preview)] bg-white p-2 text-gray-800"
                     aria-label="Full screen preview"
+                    title="Fullscreen preview"
                   >
                     <Maximize2 size={16} />
                   </button>
@@ -4163,22 +4176,26 @@ const VisualCodeEditor = () => {
           </div>
         )}
         {isSpriteLibraryOpen && (
-          <div className="fixed inset-0 z-40 bg-white">
-            <div className="flex h-16 items-center justify-between border-b px-6">
+          <div
+            id="sprite-library"
+            className="library-modal asset-modal"
+            aria-hidden={!isSpriteLibraryOpen}
+          >
+            <div className="asset-modal-header library-header flex h-16 items-center justify-between border-b px-6">
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Sprite Library</h1>
-                <p className="text-sm text-gray-500">Choose a sprite to add to your project.</p>
+                <h1 className="asset-modal-title text-xl font-bold">Sprite Library</h1>
+                <p className="asset-modal-subtitle text-sm">Choose a sprite to add to your project.</p>
               </div>
               <button
                 type="button"
-                onClick={() => setIsSpriteLibraryOpen(false)}
-                className="rounded-full bg-gray-100 p-2 text-gray-700 transition hover:bg-gray-200"
+                onClick={closeLibraries}
+                className="asset-modal-close rounded-full p-2 transition hover:bg-gray-200"
                 aria-label="Close sprite library"
               >
                 <X size={18} />
               </button>
             </div>
-            <div className="h-[calc(100vh-4rem)] overflow-y-auto pl-6 pr-8 py-6">
+            <div className="h-full overflow-y-auto px-6 py-6">
               <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="relative w-full md:max-w-md">
                   <Search
@@ -4191,7 +4208,7 @@ const VisualCodeEditor = () => {
                     value={spriteLibrarySearch}
                     onChange={(event) => setSpriteLibrarySearch(event.target.value)}
                     placeholder={`Search ${spriteLibrary.length}+ sprites…`}
-                    className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-800 shadow-sm"
+                    className="asset-search h-11 w-full rounded-xl border pl-10 pr-4 text-sm shadow-sm"
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -4203,9 +4220,30 @@ const VisualCodeEditor = () => {
                     menuActiveClassName="bg-sky-100 font-semibold text-sky-800"
                   />
                   {[
-                    { id: 'all', label: 'All' },
-                    { id: 'added', label: 'Added' },
-                    { id: 'not-added', label: 'Not Added' },
+                    { id: 'all', label: 'All', count: spriteLibrary.length },
+                    {
+                      id: 'added',
+                      label: 'Added',
+                      count: spriteLibrary.filter((librarySprite) =>
+                        sprites.some(
+                          (sprite) =>
+                            sprite.libraryId === librarySprite.id ||
+                            String(sprite.src || '') === String(librarySprite.src || '')
+                        )
+                      ).length,
+                    },
+                    {
+                      id: 'not-added',
+                      label: 'Not Added',
+                      count: spriteLibrary.filter(
+                        (librarySprite) =>
+                          !sprites.some(
+                            (sprite) =>
+                              sprite.libraryId === librarySprite.id ||
+                              String(sprite.src || '') === String(librarySprite.src || '')
+                          )
+                      ).length,
+                    },
                   ].map((filterOption) => (
                     <button
                       key={filterOption.id}
@@ -4217,7 +4255,7 @@ const VisualCodeEditor = () => {
                           : 'bg-gray-100 text-gray-700'
                       }`}
                     >
-                      {filterOption.label}
+                      {`${filterOption.label} ${filterOption.count}`}
                     </button>
                   ))}
                 </div>
@@ -4226,9 +4264,9 @@ const VisualCodeEditor = () => {
                 <button
                   type="button"
                   onClick={openSpriteUploadPicker}
-                  className="library-card rounded-2xl border-2 border-dashed border-sky-300 bg-sky-50 p-4 text-left transition hover:border-sky-400 hover:bg-sky-100"
+                  className="library-card upload-card rounded-2xl border-2 border-dashed border-sky-300 bg-sky-50 p-4 text-left transition hover:border-sky-400 hover:bg-sky-100"
                 >
-                  <div className="mb-3 flex h-32 items-center justify-center rounded-xl bg-white/70 text-sky-600">
+                  <div className="upload-placeholder mb-3 flex items-center justify-center rounded-xl bg-white/70 text-sky-600">
                     <span className="text-5xl font-light leading-none">+</span>
                   </div>
                   <div className="text-sm font-semibold text-sky-900">Upload Local Sprite</div>
@@ -4249,7 +4287,16 @@ const VisualCodeEditor = () => {
                     key={librarySprite.id}
                     type="button"
                     onClick={() => handleAddSprite(librarySprite)}
-                    className="library-card sprite-thumb-hover relative rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm hover:shadow-md"
+                    className="library-card sprite-thumb-hover sprite-card relative rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm hover:shadow-md"
+                    data-added={
+                      sprites.some(
+                        (sprite) =>
+                          sprite.libraryId === librarySprite.id ||
+                          String(sprite.src || '') === String(librarySprite.src || '')
+                      )
+                        ? 'true'
+                        : 'false'
+                    }
                   >
                     {sprites.some(
                       (sprite) =>
@@ -4287,24 +4334,28 @@ const VisualCodeEditor = () => {
           </div>
         )}
         {isBackdropLibraryOpen && (
-          <div className="fixed inset-0 z-40 bg-white">
-            <div className="flex h-16 items-center justify-between border-b px-6">
+          <div
+            id="backdrop-library"
+            className="library-modal asset-modal"
+            aria-hidden={!isBackdropLibraryOpen}
+          >
+            <div className="asset-modal-header library-header flex h-16 items-center justify-between border-b px-6">
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Backdrop Library</h1>
-                <p className="text-sm text-gray-500">
+                <h1 className="asset-modal-title text-xl font-bold">Backdrop Library</h1>
+                <p className="asset-modal-subtitle text-sm">
                   Choose backdrops to add to the current session.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setIsBackdropLibraryOpen(false)}
-                className="rounded-full bg-gray-100 p-2 text-gray-700 transition hover:bg-gray-200"
+                onClick={closeLibraries}
+                className="asset-modal-close rounded-full p-2 transition hover:bg-gray-200"
                 aria-label="Close backdrop library"
               >
                 <X size={18} />
               </button>
             </div>
-            <div className="h-[calc(100vh-4rem)] overflow-y-auto pl-6 pr-8 py-6">
+            <div className="h-full overflow-y-auto px-6 py-6">
               <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="relative w-full md:max-w-md">
                   <Search
@@ -4316,8 +4367,8 @@ const VisualCodeEditor = () => {
                     type="text"
                     value={backdropLibrarySearch}
                     onChange={(event) => setBackdropLibrarySearch(event.target.value)}
-                    placeholder="Search backdrops"
-                    className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-800 shadow-sm"
+                    placeholder={`Search ${backdropLibrary.length}+ backdrops…`}
+                    className="asset-search h-11 w-full rounded-xl border pl-10 pr-4 text-sm shadow-sm"
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -4360,14 +4411,7 @@ const VisualCodeEditor = () => {
                           : 'bg-gray-100 text-gray-700'
                       }`}
                     >
-                      <span>{filterOption.label}</span>
-                      <CountBadge
-                        className={
-                          backdropLibraryFilter === filterOption.id ? 'bg-white/20 text-white' : ''
-                        }
-                      >
-                        {filterOption.count}
-                      </CountBadge>
+                      <span>{`${filterOption.label} ${filterOption.count}`}</span>
                     </button>
                   ))}
                 </div>
@@ -4376,10 +4420,10 @@ const VisualCodeEditor = () => {
                 <button
                   type="button"
                   onClick={openBackdropUploadPicker}
-                  className="library-card rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50 p-4 text-left transition hover:border-emerald-400 hover:bg-emerald-100"
+                  className="library-card upload-card rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50 p-4 text-left transition hover:border-emerald-400 hover:bg-emerald-100"
                   style={{ backgroundColor: 'rgba(16, 185, 129, 0.05)' }}
                 >
-                  <div className="mb-3 flex h-40 items-center justify-center rounded-xl bg-white/70 text-emerald-600">
+                  <div className="upload-placeholder mb-3 flex items-center justify-center rounded-xl bg-white/70 text-emerald-600">
                     <span className="text-5xl font-light leading-none">+</span>
                   </div>
                   <div className="text-sm font-semibold text-emerald-900">
@@ -4399,14 +4443,16 @@ const VisualCodeEditor = () => {
                       key={libraryBackdrop.id}
                       type="button"
                       onClick={() => handleAddBackdropToSession(libraryBackdrop)}
-                      className={`library-card backdrop-thumb-hover overflow-hidden rounded-2xl border bg-white text-left shadow-sm hover:shadow-md ${
+                      data-backdrop-id={libraryBackdrop.id}
+                      className={`library-card backdrop-card backdrop-thumb-hover overflow-hidden rounded-2xl border bg-white text-left shadow-sm hover:shadow-md ${
                         isAdded
                           ? 'border-emerald-500 ring-2 ring-emerald-200'
                           : 'border-gray-200 hover:border-emerald-300'
                       }`}
                     >
                       <div
-                        className="backdrop-thumb-image aspect-video w-full bg-gray-50 transition-transform duration-150 ease-out"
+                        className="library-card-image backdrop-thumb-image w-full bg-gray-50 transition-transform duration-150 ease-out"
+                        data-is-white-bg={libraryBackdrop.id === 'white-space' ? 'true' : 'false'}
                         style={{
                           backgroundImage: libraryBackdrop.url
                             ? `url(${libraryBackdrop.url})`
@@ -4466,11 +4512,13 @@ const VisualCodeEditor = () => {
           onChange={handleProjectFileChange}
           className="hidden"
         />
-        {toastMessage && (
-          <div className="fixed left-1/2 top-4 z-50 w-full max-w-sm -translate-x-1/2 px-4">
-            <div className="rounded-2xl border border-sky-300/60 bg-gradient-to-r from-sky-100 via-blue-100 to-orange-100 px-4 py-3 text-center text-sm font-semibold text-slate-900 shadow-[0_18px_45px_rgba(30,64,175,0.2)] backdrop-blur-sm">
-              {toastMessage}
-            </div>
+        {toasts.length > 0 && (
+          <div id="toast-container" className="toast-container">
+            {toasts.map((toast) => (
+              <div key={toast.id} className={`toast toast-visible toast-${toast.type}`}>
+                {toast.message}
+              </div>
+            ))}
           </div>
         )}
         {isVariableModalOpen && (

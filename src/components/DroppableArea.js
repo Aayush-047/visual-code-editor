@@ -1,7 +1,7 @@
 import React from 'react';
 import { useDrop } from 'react-dnd';
 
-const DroppableArea = ({ onDrop, children, isEmpty = false, emptyState = null }) => {
+const DroppableArea = ({ onDrop, onBackgroundClick, children, isEmpty = false, emptyState = null }) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'block',
     drop: (item, monitor) => {
@@ -19,14 +19,15 @@ const DroppableArea = ({ onDrop, children, isEmpty = false, emptyState = null })
   return (
     <div
       ref={drop}
-      className={`workspace-canvas theme-transition relative min-h-[calc(80vh-100px)] max-h-[calc(80vh-100px)] overflow-y-auto rounded-2xl border-2 border-dashed p-4 ${
+      onClick={onBackgroundClick}
+      className={`workspace-canvas theme-transition relative min-h-[calc(80vh-100px)] max-h-[calc(80vh-100px)] overflow-y-auto ${
         isOver ? 'bg-blue-50/10' : ''
       }`}
       style={isOver ? { borderColor: '#60a5fa' } : undefined}
     >
-      <div className="min-h-full p-4">
+      <div className="workspace-blocks min-h-full">
         {isEmpty ? (
-          <div className="flex min-h-[calc(80vh-164px)] items-center justify-center">
+          <div className="workspace-empty-hint">
             {emptyState}
           </div>
         ) : null}

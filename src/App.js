@@ -7,7 +7,7 @@ function App() {
       <main className="flex-1">
         <VisualCodeEditor />
       </main>
-      <footer className="app-footer theme-transition p-4 text-center backdrop-blur-sm">
+      <footer className="app-footer theme-transition backdrop-blur-sm">
         <p>Powered by Aayush Khunger</p>
       </footer>
     </div>
