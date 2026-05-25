@@ -6,6 +6,7 @@ import {
   ChevronDown,
   FileText,
   FolderOpen,
+  HelpCircle,
   Image as ImageIcon,
   Link2,
   Loader2,
@@ -62,6 +63,49 @@ const RECORD_SOUND_OPTION = '__record_sound__';
 const EDITOR_PANEL_HEIGHT = 'min(600px, calc(100vh - 14rem))';
 const EMPTY_BLOCKS = [];
 const DROPDOWN_MENU_MAX_HEIGHT = 176;
+const TUTORIAL_STORAGE_KEY = 'vce_tutorial_completed';
+const TUTORIAL_STEPS = [
+  {
+    id: 'drag-blocks',
+    target: '.block-palette .block:first-of-type',
+    title: 'Drag & drop code blocks',
+    description:
+      'Pick any block from this panel and drag it into the workspace. Stack blocks to build your program.',
+    position: 'right',
+  },
+  {
+    id: 'add-sprites',
+    target: '.tab[data-tab="sprite"]',
+    title: 'Add more sprites',
+    description:
+      'Click the Sprite tab to manage your characters. Open the sprite library from the Assets menu to add more.',
+    position: 'bottom',
+  },
+  {
+    id: 'add-backdrops',
+    target: '.tab[data-tab="backdrops"]',
+    title: 'Change the backdrop',
+    description:
+      'Click the Backdrops tab to set the scene. Choose a library backdrop or upload your own image.',
+    position: 'bottom',
+  },
+  {
+    id: 'run-code',
+    target: '.btn-run-code',
+    title: 'Run your code',
+    description:
+      'Press Run Code to bring your blocks to life and watch the preview react on the right.',
+    position: 'top',
+  },
+  {
+    id: 'save-load',
+    target: '.navbar-file-btn',
+    title: 'Save & load your project',
+    description:
+      'Click File to save your project for later or load a project you already saved.',
+    position: 'bottom',
+  },
+];
 const SPRITE_CATEGORY_MAP = {
   Food: new Set([
     'apple',
@@ -464,6 +508,114 @@ const AssetCategoryDropdown = ({
         ))}
       </FloatingDropdownMenu>
     </div>
+  );
+};
+
+const getTutorialTooltipStyle = (position, rect) => {
+  const gap = 16;
+  const tooltipWidth = 300;
+  const tooltipHeight = 180;
+
+  let top;
+  let left;
+
+  switch (position) {
+    case 'right':
+      top = rect.top + rect.height / 2 - tooltipHeight / 2;
+      left = rect.right + gap;
+      break;
+    case 'left':
+      top = rect.top + rect.height / 2 - tooltipHeight / 2;
+      left = rect.left - tooltipWidth - gap;
+      break;
+    case 'bottom':
+      top = rect.bottom + gap;
+      left = rect.left + rect.width / 2 - tooltipWidth / 2;
+      break;
+    case 'top':
+    default:
+      top = rect.top - tooltipHeight - gap;
+      left = rect.left + rect.width / 2 - tooltipWidth / 2;
+      break;
+  }
+
+  return {
+    top: Math.max(12, Math.min(top, window.innerHeight - tooltipHeight - 12)),
+    left: Math.max(12, Math.min(left, window.innerWidth - tooltipWidth - 12)),
+  };
+};
+
+const TutorialOverlay = ({
+  currentStep,
+  currentStepIndex,
+  spotlightRect,
+  tooltipStyle,
+  onSkip,
+  onNext,
+  onPrev,
+  onJump,
+}) => {
+  if (!currentStep || !spotlightRect) {
+    return null;
+  }
+
+  const isFirst = currentStepIndex === 0;
+  const isLast = currentStepIndex === TUTORIAL_STEPS.length - 1;
+
+  return (
+    <>
+      <div id="tutorial-overlay" />
+      <div
+        id="tutorial-spotlight"
+        style={{
+          top: spotlightRect.top - 8,
+          left: spotlightRect.left - 8,
+          width: spotlightRect.width + 16,
+          height: spotlightRect.height + 16,
+        }}
+      />
+      <div
+        id="tutorial-tooltip"
+        data-position={currentStep.position}
+        style={{ top: tooltipStyle.top, left: tooltipStyle.left }}
+      >
+        <div className="tt-step-dots">
+          {TUTORIAL_STEPS.map((step, index) => (
+            <button
+              key={step.id}
+              type="button"
+              className={`tt-dot ${index === currentStepIndex ? 'tt-dot-active' : ''}`}
+              onClick={() => onJump(index)}
+              aria-label={`Go to tutorial step ${index + 1}`}
+            />
+          ))}
+        </div>
+        <h3 className="tt-title">{currentStep.title}</h3>
+        <p className="tt-desc">{currentStep.description}</p>
+        <div className="tt-actions">
+          <button type="button" className="tt-btn-skip" onClick={onSkip}>
+            Skip tour
+          </button>
+          <div className="tt-nav">
+            {!isFirst ? (
+              <button type="button" className="tt-btn-prev" onClick={onPrev}>
+                Back
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={`tt-btn-next ${isLast ? 'tt-btn-finish' : ''}`}
+              onClick={onNext}
+            >
+              {isLast ? 'Done!' : 'Next'}
+            </button>
+          </div>
+        </div>
+        <div className="tt-counter">
+          {currentStepIndex + 1} of {TUTORIAL_STEPS.length}
+        </div>
+      </div>
+    </>
   );
 };
 
@@ -980,6 +1132,10 @@ const VisualCodeEditor = () => {
   const [isBackdropSelectorOpen, setIsBackdropSelectorOpen] = useState(false);
   const [isSpriteLibraryOpen, setIsSpriteLibraryOpen] = useState(false);
   const [isBackdropLibraryOpen, setIsBackdropLibraryOpen] = useState(false);
+  const [isTutorialActive, setIsTutorialActive] = useState(false);
+  const [tutorialStepIndex, setTutorialStepIndex] = useState(0);
+  const [tutorialSpotlightRect, setTutorialSpotlightRect] = useState(null);
+  const [tutorialTooltipStyle, setTutorialTooltipStyle] = useState({ top: 12, left: 12 });
   const [spriteLibrarySearch, setSpriteLibrarySearch] = useState('');
   const [spriteLibraryFilter, setSpriteLibraryFilter] = useState('all');
   const [spriteCategoryFilter, setSpriteCategoryFilter] = useState('all');
@@ -995,6 +1151,7 @@ const VisualCodeEditor = () => {
   const spritesRef = useRef([INITIAL_SPRITE]);
   const triggerBroadcastListenersRef = useRef(() => {});
   const lzStringLoaderRef = useRef(null);
+  const tutorialStartTimeoutRef = useRef(null);
   const hasRestoredSharedProjectRef = useRef(false);
   const previousBackdropValueRef = useRef(stageState.backdropId);
   const [sidebarBlocks, setSidebarBlocks] = useState([
@@ -1365,6 +1522,79 @@ const VisualCodeEditor = () => {
     }, duration);
 
     toastTimeoutRef.current.push(timeoutId);
+  }, []);
+
+  const currentTutorialStep = TUTORIAL_STEPS[tutorialStepIndex] || null;
+
+  const stopTutorial = useCallback(() => {
+    setIsTutorialActive(false);
+    setTutorialSpotlightRect(null);
+  }, []);
+
+  const completeTutorial = useCallback(() => {
+    window.localStorage.setItem(TUTORIAL_STORAGE_KEY, 'true');
+    stopTutorial();
+    showToast("You're all set! Start building something.", 'success', 4000);
+  }, [showToast, stopTutorial]);
+
+  const skipTutorial = useCallback(() => {
+    window.localStorage.setItem(TUTORIAL_STORAGE_KEY, 'skipped');
+    stopTutorial();
+    showToast('Tutorial skipped. Restart it anytime from File.', 'info');
+  }, [showToast, stopTutorial]);
+
+  const startTutorial = useCallback(() => {
+    setActiveSidebarTab('blocks');
+    setTutorialStepIndex(0);
+    setIsTutorialActive(true);
+  }, []);
+
+  const restartTutorial = useCallback(() => {
+    window.localStorage.removeItem(TUTORIAL_STORAGE_KEY);
+    startTutorial();
+  }, [startTutorial]);
+
+  const updateTutorialLayout = useCallback(
+    (index) => {
+      const fallbackToNext = (nextIndex) => {
+        if (nextIndex >= TUTORIAL_STEPS.length) {
+          completeTutorial();
+          return;
+        }
+
+        setTutorialStepIndex(nextIndex);
+      };
+
+      const step = TUTORIAL_STEPS[index];
+      const target = step ? document.querySelector(step.target) : null;
+
+      if (!step || !target) {
+        fallbackToNext(index + 1);
+        return;
+      }
+
+      target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+
+      window.requestAnimationFrame(() => {
+        const rect = target.getBoundingClientRect();
+        setTutorialSpotlightRect(rect);
+        setTutorialTooltipStyle(getTutorialTooltipStyle(step.position, rect));
+      });
+    },
+    [completeTutorial]
+  );
+
+  const nextTutorialStep = useCallback(() => {
+    if (tutorialStepIndex < TUTORIAL_STEPS.length - 1) {
+      setTutorialStepIndex((currentIndex) => currentIndex + 1);
+      return;
+    }
+
+    completeTutorial();
+  }, [completeTutorial, tutorialStepIndex]);
+
+  const previousTutorialStep = useCallback(() => {
+    setTutorialStepIndex((currentIndex) => Math.max(0, currentIndex - 1));
   }, []);
 
   const ensureLZStringLoaded = useCallback(() => {
@@ -2200,6 +2430,49 @@ const VisualCodeEditor = () => {
       window.setTimeout(() => backdropLibrarySearchRef.current?.focus(), 0);
     }
   }, [isBackdropLibraryOpen]);
+
+  useEffect(() => {
+    if (window.localStorage.getItem(TUTORIAL_STORAGE_KEY)) {
+      return undefined;
+    }
+
+    tutorialStartTimeoutRef.current = window.setTimeout(() => {
+      startTutorial();
+    }, 800);
+
+    return () => {
+      if (tutorialStartTimeoutRef.current) {
+        window.clearTimeout(tutorialStartTimeoutRef.current);
+        tutorialStartTimeoutRef.current = null;
+      }
+    };
+  }, [startTutorial]);
+
+  useEffect(() => {
+    if (!isTutorialActive) {
+      return undefined;
+    }
+
+    updateTutorialLayout(tutorialStepIndex);
+
+    const handleResize = () => {
+      updateTutorialLayout(tutorialStepIndex);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [activeSidebarTab, isTutorialActive, tutorialStepIndex, updateTutorialLayout]);
+
+  useEffect(() => {
+    window.restartTutorial = restartTutorial;
+
+    return () => {
+      delete window.restartTutorial;
+    };
+  }, [restartTutorial]);
 
   useEffect(() => {
     document.body.style.overflow = isSpriteLibraryOpen || isBackdropLibraryOpen ? 'hidden' : '';
@@ -3332,7 +3605,7 @@ const VisualCodeEditor = () => {
                   setIsAssetsMenuOpen(false);
                   setIsFileMenuOpen((open) => !open);
                 }}
-                className="topbar-action flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition hover:bg-white/10 hover:text-white"
+                className="navbar-file-btn topbar-action flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition hover:bg-white/10 hover:text-white"
                 aria-expanded={isFileMenuOpen}
                 aria-haspopup="menu"
               >
@@ -3368,6 +3641,21 @@ const VisualCodeEditor = () => {
                   >
                     <Upload size={16} strokeWidth={1.5} className="current-color-icon text-blue-600" />
                     Load Project
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsFileMenuOpen(false);
+                      restartTutorial();
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-gray-800 hover:bg-blue-50"
+                  >
+                    <HelpCircle
+                      size={16}
+                      strokeWidth={1.5}
+                      className="current-color-icon text-blue-600"
+                    />
+                    Restart Tutorial
                   </button>
                 </div>
               )}
@@ -3567,8 +3855,9 @@ const VisualCodeEditor = () => {
               <div className="inline-flex min-w-max items-center gap-2 px-0.5">
                 <button
                   draggable="false"
+                  data-tab="blocks"
                   onClick={() => setActiveSidebarTab('blocks')}
-                  className={`tab-button flex flex-shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 text-sm font-semibold transition ${
+                  className={`tab tab-button flex flex-shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 text-sm font-semibold transition ${
                     activeSidebarTab === 'blocks'
                       ? 'tab-active'
                       : ''
@@ -3581,8 +3870,9 @@ const VisualCodeEditor = () => {
                 </button>
                 <button
                   draggable="false"
+                  data-tab="sprite"
                   onClick={() => setActiveSidebarTab('sprite')}
-                  className={`tab-button flex flex-shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 text-sm font-semibold transition ${
+                  className={`tab tab-button flex flex-shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 text-sm font-semibold transition ${
                     activeSidebarTab === 'sprite'
                       ? 'tab-active'
                       : ''
@@ -3604,8 +3894,9 @@ const VisualCodeEditor = () => {
                 </button>
                 <button
                   draggable="false"
+                  data-tab="backdrops"
                   onClick={() => setActiveSidebarTab('backdrops')}
-                  className={`tab-button flex flex-shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 text-sm font-semibold transition ${
+                  className={`tab tab-button flex flex-shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 text-sm font-semibold transition ${
                     activeSidebarTab === 'backdrops'
                       ? 'tab-active'
                       : ''
@@ -3627,7 +3918,7 @@ const VisualCodeEditor = () => {
               style={{ height: EDITOR_PANEL_HEIGHT, minHeight: EDITOR_PANEL_HEIGHT }}
             >
               {activeSidebarTab === 'blocks' && (
-                <div className="sidebar-panel min-h-full rounded-xl border px-2 py-3 shadow-sm">
+                <div className="block-palette sidebar-panel min-h-full rounded-xl border px-2 py-3 shadow-sm">
                   <h2 className="sidebar-section-heading mb-2 border-b pb-2 pt-2 text-lg font-bold">
                     Motion
                   </h2>
@@ -4512,6 +4803,18 @@ const VisualCodeEditor = () => {
           onChange={handleProjectFileChange}
           className="hidden"
         />
+        {isTutorialActive && currentTutorialStep ? (
+          <TutorialOverlay
+            currentStep={currentTutorialStep}
+            currentStepIndex={tutorialStepIndex}
+            spotlightRect={tutorialSpotlightRect}
+            tooltipStyle={tutorialTooltipStyle}
+            onSkip={skipTutorial}
+            onNext={nextTutorialStep}
+            onPrev={previousTutorialStep}
+            onJump={setTutorialStepIndex}
+          />
+        ) : null}
         {toasts.length > 0 && (
           <div id="toast-container" className="toast-container">
             {toasts.map((toast) => (
