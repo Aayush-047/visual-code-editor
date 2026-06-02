@@ -1,5 +1,5 @@
 import React from 'react';
-import VisualCodeEditor from './components/VisualCodeEditor';
+import VisualCodeEditor from './components/visualCodeEditor/VisualCodeEditor';
 
 function App() {
   return (
