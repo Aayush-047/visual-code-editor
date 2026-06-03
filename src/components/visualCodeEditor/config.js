@@ -21,7 +21,7 @@ export const EDITOR_PANEL_HEIGHT = 'min(600px, calc(100vh - 14rem))';
 export const EMPTY_BLOCKS = [];
 export const DROPDOWN_MENU_MAX_HEIGHT = 176;
 export const TUTORIAL_STORAGE_KEY = 'vce_tutorial_completed';
-export const TUTORIAL_STEPS = [
+export const DESKTOP_TUTORIAL_STEPS = [
   {
     id: 'drag-blocks',
     target: '.block-palette .block:first-of-type',
@@ -63,6 +63,52 @@ export const TUTORIAL_STEPS = [
     position: 'bottom',
   },
 ];
+
+export const MOBILE_TUTORIAL_STEPS = [
+  {
+    id: 'add-blocks',
+    target: '.mobile-preview-add-btn',
+    title: 'Add blocks',
+    description:
+      'Tap the plus button to open the mobile block picker and build your sequence.',
+    position: 'bottom',
+  },
+  {
+    id: 'change-sprite',
+    target: '.mobile-preview-sprite-btn',
+    title: 'Choose a sprite',
+    description:
+      'Tap here to switch the active sprite for this project.',
+    position: 'bottom',
+  },
+  {
+    id: 'change-backdrop',
+    target: '.mobile-preview-backdrop-btn',
+    title: 'Choose a backdrop',
+    description:
+      'Tap here to switch the stage backdrop without opening the full library.',
+    position: 'bottom',
+  },
+  {
+    id: 'run-code',
+    target: '.mobile-run-main-fab',
+    title: 'Run your code',
+    description:
+      'Tap the green play button to run the blocks you added.',
+    position: 'top',
+  },
+  {
+    id: 'menu',
+    target: '.mobile-navbar-menu-btn',
+    title: 'Save and more',
+    description:
+      'Use the menu for save, load, share, dark mode, and tutorial restart.',
+    position: 'bottom',
+  },
+];
+
+export const getTutorialSteps = (isMobile = false) =>
+  (isMobile ? MOBILE_TUTORIAL_STEPS : DESKTOP_TUTORIAL_STEPS);
 
 export const SPRITE_CATEGORY_MAP = {
   Food: new Set(['apple', 'banana', 'bread', 'cake', 'donut', 'egg', 'milk', 'orange', 'salad', 'strawberry', 'taco', 'watermelon']),
@@ -196,6 +242,7 @@ export const createWorkspaceBlock = (item) => ({
   type: item.type,
   action: item.action,
   value: cloneBlockValue(item.value),
+  ...(item.id ? { sourceSidebarId: item.id } : {}),
   ...(isEventTriggerAction(item.action) || isControlContainerAction(item.action) ? { children: [] } : {}),
   ...(item.action === actionTypes.IF_THEN_ELSE ? { elseChildren: [] } : {}),
 });
@@ -390,10 +437,10 @@ export const removeVariableReporterBlocks = (blocksToUpdate, entityType, entityN
       value: mapOperatorSlotBlocks(block.value, (slotBlock) => removeVariableReporterBlocks([slotBlock], entityType, entityName)[0] || ''),
     }));
 
-export const getTutorialTooltipStyle = (position, rect) => {
+export const getTutorialTooltipStyle = (position, rect, isMobile = false) => {
   const gap = 16;
-  const tooltipWidth = 300;
-  const tooltipHeight = 180;
+  const tooltipWidth = isMobile ? Math.min(280, window.innerWidth - 24) : 300;
+  const tooltipHeight = isMobile ? 196 : 180;
   let top;
   let left;
 

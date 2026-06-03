@@ -10,7 +10,7 @@ import {
   isEventTriggerAction,
 } from './config';
 import { createDefaultSidebarBlocks } from './sidebarBlocks';
-import { TutorialOverlay } from './primitives';
+import { MobileRunFabControls, TutorialOverlay } from './primitives';
 import { BackdropLibraryModal, RecordingModal, SpriteLibraryModal, ToastContainer, VariableModal } from './modals';
 import { EditorNavbar, PreviewPanel, SidebarPanel, WorkspacePanel } from './sections';
 import useAssetLibraries from './hooks/useAssetLibraries';
@@ -25,6 +25,8 @@ import useTutorialManager from './hooks/useTutorialManager';
 import useVariablesPanel from './hooks/useVariablesPanel';
 import useWorkspaceBlocks from './hooks/useWorkspaceBlocks';
 
+const MOBILE_LAYOUT_BREAKPOINT = 1024;
+
 const VisualCodeEditor = () => {
   const [toasts, setToasts] = useState([]);
   const toastTimeoutRef = useRef([]);
@@ -36,8 +38,12 @@ const VisualCodeEditor = () => {
   const [isProjectSaving, setIsProjectSaving] = useState(false);
   const [isProjectLoading, setIsProjectLoading] = useState(false);
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
+  const [mobileBlockPickerOpenRequest, setMobileBlockPickerOpenRequest] = useState(0);
   const [sidebarBlocks, setSidebarBlocks] = useState(() =>
     createDefaultSidebarBlocks(BACKDROP_LIBRARY[0].id)
+  );
+  const [isMobileLayout, setIsMobileLayout] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < MOBILE_LAYOUT_BREAKPOINT : false
   );
   const executeAction = useExecuteAction();
   const showToast = useCallback((message, type = 'info', duration = 3000) => {
@@ -140,11 +146,13 @@ const VisualCodeEditor = () => {
     restartTutorial,
     skipTutorial,
     tutorialSpotlightRect,
+    tutorialSteps,
     tutorialStepIndex,
     tutorialTooltipStyle,
     setTutorialStepIndex,
   } = useTutorialManager({
     activeSidebarTab,
+    isMobileLayout,
     setActiveSidebarTab,
     showToast,
   });
@@ -261,8 +269,10 @@ const VisualCodeEditor = () => {
     requestRemoveBlock,
     selectedBlockId,
     selectedReplayBlockId,
+    setMobileQueueOrder,
     setSelectedBlockId,
     setSelectedReplayBlockId,
+    toggleMobileQueueBlock,
   } = useWorkspaceBlocks({
     activeSpriteId,
     blocks,
@@ -386,12 +396,31 @@ const VisualCodeEditor = () => {
     []
   );
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_LAYOUT_BREAKPOINT - 1}px)`);
+    const handleMediaChange = (event) => {
+      setIsMobileLayout(event.matches);
+    };
+
+    setIsMobileLayout(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handleMediaChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleMediaChange);
+    };
+  }, []);
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div
         className={`editor-surface flex h-full min-h-0 flex-col ${isDarkMode ? 'theme-dark' : ''}`}
       >
         <EditorNavbar
+          isMobile={isMobileLayout}
           fileMenuRef={fileMenuRef}
           assetsMenuRef={assetsMenuRef}
           spriteSelectorRef={spriteSelectorRef}
@@ -423,90 +452,194 @@ const VisualCodeEditor = () => {
           backdropValue={backdropValue}
           handleSelectBackdrop={handleSelectBackdrop}
         />
-        <div className="flex min-h-0 flex-1">
-          <SidebarPanel
-            activeSidebarTab={activeSidebarTab}
-            setActiveSidebarTab={setActiveSidebarTab}
-            selectedSprite={selectedSprite}
-            selectedBackdrop={selectedBackdrop}
-            sidebarBlocks={sidebarBlocks}
-            sounds={sounds}
-            variableNames={variableNames}
-            listNames={listNames}
-            availableBackdrops={availableBackdrops}
-            isRecordingSound={isRecordingSound}
-            handleSidebarBlockChange={handleSidebarBlockChange}
-            handleSoundMenuAction={handleSoundMenuAction}
-            handleBackdropMenuAction={handleBackdropMenuAction}
-            handleDeleteVariableEntity={handleDeleteVariableEntity}
-            showToast={showToast}
-            openVariableModal={openVariableModal}
-            openListModal={openListModal}
-            openSpriteLibrary={openSpriteLibrary}
-            sprites={sprites}
-            selectedSpriteId={selectedSpriteId}
-            setSelectedSpriteId={setSelectedSpriteId}
-            handleRemoveSprite={handleRemoveSprite}
-            openBackdropLibrary={openBackdropLibrary}
-            backdropValue={backdropValue}
-            handleSelectBackdrop={handleSelectBackdrop}
-          />
-          <WorkspacePanel
-            activeSidebarTab={activeSidebarTab}
-            selectedSprite={selectedSprite}
-            spriteEditorMarkup={spriteEditorMarkup}
-            spriteEditorError={spriteEditorError}
-            handleApplySpriteMarkup={handleApplySpriteMarkup}
-            handleResetSpriteMarkup={handleResetSpriteMarkup}
-            handleSelectedSpriteSizeChange={handleSelectedSpriteSizeChange}
-            handleDrop={handleDrop}
-            setSelectedBlockId={setSelectedBlockId}
-            hasBlocks={hasBlocks}
-            blocks={blocks}
-            handleBlockChange={handleBlockChange}
-            handleRemoveBlock={handleRemoveBlock}
-            moveBlock={moveBlock}
-            sounds={sounds}
-            variableNames={variableNames}
-            listNames={listNames}
-            availableBackdrops={availableBackdrops}
-            isRecordingSound={isRecordingSound}
-            handleSoundMenuAction={handleSoundMenuAction}
-            handleBackdropMenuAction={handleBackdropMenuAction}
-            handleNestedDrop={handleNestedDrop}
-            handleNestedBlockChange={handleNestedBlockChange}
-            handleOperatorSlotChange={handleOperatorSlotChange}
-            handleOperatorSlotDrop={handleOperatorSlotDrop}
-            showToast={showToast}
-            handleDeleteVariableEntity={handleDeleteVariableEntity}
-            selectedBlockId={selectedBlockId}
-            requestRemoveBlock={requestRemoveBlock}
-            removingBlockIds={removingBlockIds}
-            recentlyAddedBlockIds={recentlyAddedBlockIds}
-            hasDismissedRunNudge={hasDismissedRunNudge}
-          />
-          <PreviewPanel
-            isPreviewExpanded={isPreviewExpanded}
-            setIsPreviewExpanded={setIsPreviewExpanded}
-            previewRef={previewRef}
-            spriteRef={spriteRef}
-            sprites={sprites}
-            activeSpriteId={activeSpriteId}
-            selectedBackdrop={selectedBackdrop}
-            handleSpritePointerDown={handleSpritePointerDown}
-            handleSpritePointerMove={handleSpritePointerMove}
-            handleSpritePointerUp={handleSpritePointerUp}
-            handleSpriteClick={handleSpriteClick}
-            isRunning={isRunning}
-            replayableBlocks={replayableBlocks}
-            selectedReplayBlockId={selectedReplayBlockId}
-            setSelectedReplayBlockId={setSelectedReplayBlockId}
-            runCode={runCode}
-            replaySelectedBlock={replaySelectedBlock}
-            stopCurrentSprite={stopCurrentSprite}
-            stopAllCode={stopAllCode}
-            hasDismissedRunNudge={hasDismissedRunNudge}
-          />
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          {!isMobileLayout ? (
+            <>
+              <SidebarPanel
+                activeSidebarTab={activeSidebarTab}
+                setActiveSidebarTab={setActiveSidebarTab}
+                selectedSprite={selectedSprite}
+                selectedBackdrop={selectedBackdrop}
+                sidebarBlocks={sidebarBlocks}
+                sounds={sounds}
+                variableNames={variableNames}
+                listNames={listNames}
+                availableBackdrops={availableBackdrops}
+                isRecordingSound={isRecordingSound}
+                handleSidebarBlockChange={handleSidebarBlockChange}
+                handleSoundMenuAction={handleSoundMenuAction}
+                handleBackdropMenuAction={handleBackdropMenuAction}
+                handleDeleteVariableEntity={handleDeleteVariableEntity}
+                showToast={showToast}
+                openVariableModal={openVariableModal}
+                openListModal={openListModal}
+                openSpriteLibrary={openSpriteLibrary}
+                sprites={sprites}
+                selectedSpriteId={selectedSpriteId}
+                setSelectedSpriteId={setSelectedSpriteId}
+                handleRemoveSprite={handleRemoveSprite}
+                openBackdropLibrary={openBackdropLibrary}
+                backdropValue={backdropValue}
+                handleSelectBackdrop={handleSelectBackdrop}
+                handleAddBlock={handleDrop}
+              />
+              <WorkspacePanel
+                activeSidebarTab={activeSidebarTab}
+                selectedSprite={selectedSprite}
+                spriteEditorMarkup={spriteEditorMarkup}
+                spriteEditorError={spriteEditorError}
+                handleApplySpriteMarkup={handleApplySpriteMarkup}
+                handleResetSpriteMarkup={handleResetSpriteMarkup}
+                handleSelectedSpriteSizeChange={handleSelectedSpriteSizeChange}
+                handleDrop={handleDrop}
+                setSelectedBlockId={setSelectedBlockId}
+                hasBlocks={hasBlocks}
+                blocks={blocks}
+                handleBlockChange={handleBlockChange}
+                handleRemoveBlock={handleRemoveBlock}
+                moveBlock={moveBlock}
+                sounds={sounds}
+                variableNames={variableNames}
+                listNames={listNames}
+                availableBackdrops={availableBackdrops}
+                isRecordingSound={isRecordingSound}
+                handleSoundMenuAction={handleSoundMenuAction}
+                handleBackdropMenuAction={handleBackdropMenuAction}
+                handleNestedDrop={handleNestedDrop}
+                handleNestedBlockChange={handleNestedBlockChange}
+                handleOperatorSlotChange={handleOperatorSlotChange}
+                handleOperatorSlotDrop={handleOperatorSlotDrop}
+                showToast={showToast}
+                handleDeleteVariableEntity={handleDeleteVariableEntity}
+                selectedBlockId={selectedBlockId}
+                requestRemoveBlock={requestRemoveBlock}
+                removingBlockIds={removingBlockIds}
+                recentlyAddedBlockIds={recentlyAddedBlockIds}
+                hasDismissedRunNudge={hasDismissedRunNudge}
+                setMobileQueueOrder={setMobileQueueOrder}
+              />
+              <PreviewPanel
+                isPreviewExpanded={isPreviewExpanded}
+                setIsPreviewExpanded={setIsPreviewExpanded}
+                previewRef={previewRef}
+                spriteRef={spriteRef}
+                sprites={sprites}
+                activeSpriteId={activeSpriteId}
+                selectedSprite={selectedSprite}
+                selectedBackdrop={selectedBackdrop}
+                availableBackdrops={availableBackdrops}
+                backdropValue={backdropValue}
+                setSelectedSpriteId={setSelectedSpriteId}
+                handleSelectBackdrop={handleSelectBackdrop}
+                handleShareProject={handleShareProject}
+                openSpriteLibrary={openSpriteLibrary}
+                openBackdropLibrary={openBackdropLibrary}
+                handleSpritePointerDown={handleSpritePointerDown}
+                handleSpritePointerMove={handleSpritePointerMove}
+                handleSpritePointerUp={handleSpritePointerUp}
+                handleSpriteClick={handleSpriteClick}
+                isRunning={isRunning}
+                replayableBlocks={replayableBlocks}
+                selectedReplayBlockId={selectedReplayBlockId}
+                setSelectedReplayBlockId={setSelectedReplayBlockId}
+                runCode={runCode}
+                replaySelectedBlock={replaySelectedBlock}
+                stopCurrentSprite={stopCurrentSprite}
+                stopAllCode={stopAllCode}
+                hasDismissedRunNudge={hasDismissedRunNudge}
+              />
+            </>
+          ) : (
+            <>
+              <PreviewPanel
+                isMobile={true}
+                isPreviewExpanded={isPreviewExpanded}
+                setIsPreviewExpanded={setIsPreviewExpanded}
+                previewRef={previewRef}
+                spriteRef={spriteRef}
+                sprites={sprites}
+                activeSpriteId={activeSpriteId}
+                selectedSprite={selectedSprite}
+                selectedBackdrop={selectedBackdrop}
+                availableBackdrops={availableBackdrops}
+                backdropValue={backdropValue}
+                setSelectedSpriteId={setSelectedSpriteId}
+                handleSelectBackdrop={handleSelectBackdrop}
+                handleShareProject={handleShareProject}
+                openSpriteLibrary={openSpriteLibrary}
+                openBackdropLibrary={openBackdropLibrary}
+                onOpenBlockPicker={() => setMobileBlockPickerOpenRequest((value) => value + 1)}
+                handleSpritePointerDown={handleSpritePointerDown}
+                handleSpritePointerMove={handleSpritePointerMove}
+                handleSpritePointerUp={handleSpritePointerUp}
+                handleSpriteClick={handleSpriteClick}
+                isRunning={isRunning}
+                replayableBlocks={replayableBlocks}
+                selectedReplayBlockId={selectedReplayBlockId}
+                setSelectedReplayBlockId={setSelectedReplayBlockId}
+                runCode={runCode}
+                replaySelectedBlock={replaySelectedBlock}
+                stopCurrentSprite={stopCurrentSprite}
+                stopAllCode={stopAllCode}
+                hasDismissedRunNudge={hasDismissedRunNudge}
+              />
+              <MobileRunFabControls
+                isRunning={isRunning}
+                replayableBlocks={replayableBlocks}
+                selectedReplayBlockId={selectedReplayBlockId}
+                setSelectedReplayBlockId={setSelectedReplayBlockId}
+                runCode={runCode}
+                replaySelectedBlock={replaySelectedBlock}
+                stopCurrentSprite={stopCurrentSprite}
+                stopAllCode={stopAllCode}
+              />
+              <SidebarPanel
+                isMobile={true}
+                showMobileTrigger={false}
+                mobileOpenRequest={mobileBlockPickerOpenRequest}
+                activeSidebarTab={activeSidebarTab}
+                setActiveSidebarTab={setActiveSidebarTab}
+                selectedSprite={selectedSprite}
+                selectedBackdrop={selectedBackdrop}
+                sidebarBlocks={sidebarBlocks}
+                sounds={sounds}
+                variableNames={variableNames}
+                listNames={listNames}
+                availableBackdrops={availableBackdrops}
+                isRecordingSound={isRecordingSound}
+                handleSidebarBlockChange={handleSidebarBlockChange}
+                handleSoundMenuAction={handleSoundMenuAction}
+                handleBackdropMenuAction={handleBackdropMenuAction}
+                handleDeleteVariableEntity={handleDeleteVariableEntity}
+                showToast={showToast}
+                openVariableModal={openVariableModal}
+                openListModal={openListModal}
+                openSpriteLibrary={openSpriteLibrary}
+                sprites={sprites}
+                selectedSpriteId={selectedSpriteId}
+                setSelectedSpriteId={setSelectedSpriteId}
+                handleRemoveSprite={handleRemoveSprite}
+                openBackdropLibrary={openBackdropLibrary}
+                backdropValue={backdropValue}
+                handleSelectBackdrop={handleSelectBackdrop}
+                handleAddBlock={toggleMobileQueueBlock}
+                blocks={blocks}
+                runCode={runCode}
+                isRunning={isRunning}
+                handleBlockChange={handleBlockChange}
+                handleRemoveBlock={handleRemoveBlock}
+                handleNestedDrop={handleNestedDrop}
+                handleNestedBlockChange={handleNestedBlockChange}
+                handleOperatorSlotChange={handleOperatorSlotChange}
+                handleOperatorSlotDrop={handleOperatorSlotDrop}
+                selectedBlockId={selectedBlockId}
+                setSelectedBlockId={setSelectedBlockId}
+                requestRemoveBlock={requestRemoveBlock}
+                removingBlockIds={removingBlockIds}
+                recentlyAddedBlockIds={recentlyAddedBlockIds}
+              />
+            </>
+          )}
         </div>
         <SpriteLibraryModal
           isOpen={isSpriteLibraryOpen}
@@ -569,6 +702,7 @@ const VisualCodeEditor = () => {
             currentStepIndex={tutorialStepIndex}
             spotlightRect={tutorialSpotlightRect}
             tooltipStyle={tutorialTooltipStyle}
+            tutorialSteps={tutorialSteps}
             onSkip={skipTutorial}
             onNext={nextTutorialStep}
             onPrev={previousTutorialStep}

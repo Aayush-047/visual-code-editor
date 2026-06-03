@@ -14,6 +14,8 @@ const StagePreview = ({
   onSpritePointerUp,
   onSpriteClick,
   isInteractive = true,
+  isMobile = false,
+  mobileSpriteScale = 0.5,
   panelHeight = EDITOR_PANEL_HEIGHT,
   className = 'border p-4 relative overflow-x-auto overflow-y-auto',
 }) => (
@@ -31,6 +33,7 @@ const StagePreview = ({
   >
     {sprites.map((sprite) => {
       const isSelectedSprite = sprite.id === selectedSpriteId;
+      const spriteScale = (sprite.spriteState.size / 100) * (isMobile ? mobileSpriteScale : 1);
 
       return (
         <div
@@ -60,7 +63,7 @@ const StagePreview = ({
           <div
             className="h-24 w-24"
             style={{
-              transform: `rotate(${sprite.spriteState.rotation + 90}deg) scale(${sprite.spriteState.size / 100})`,
+              transform: `rotate(${sprite.spriteState.rotation + 90}deg) scale(${spriteScale})`,
               transformOrigin: 'center center',
             }}
           >

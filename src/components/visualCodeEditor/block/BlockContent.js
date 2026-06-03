@@ -167,6 +167,7 @@ const BlockContent = ({
       {(action === MOVE_X || action === MOVE_Y || action === TURN_RIGHT || action === TURN_LEFT || action === POINT_IN_DIRECTION || action === CHANGE_SIZE_TO || action === CHANGE_SIZE_BY || action === SET_VOLUME || action === CHANGE_VOLUME_BY || action === WHEN_LOUDNESS_GREATER_THAN) && (
         <input
           type="number"
+          inputMode="numeric"
           min={action === SET_VOLUME ? 0 : action === WHEN_LOUDNESS_GREATER_THAN ? 1 : undefined}
           max={(action === SET_VOLUME || action === WHEN_LOUDNESS_GREATER_THAN) ? 100 : undefined}
           value={value}
@@ -243,6 +244,7 @@ const BlockContent = ({
         <>
           <input
             type="number"
+            inputMode="numeric"
             value={value[0]}
             onChange={(event) => handleInputChange(event, 0)}
             className={`${inputClassName} mr-1 w-14`}
@@ -251,6 +253,7 @@ const BlockContent = ({
           />
           <input
             type="number"
+            inputMode="numeric"
             value={value[1]}
             onChange={(event) => handleInputChange(event, 1)}
             className={`${inputClassName} w-14`}
@@ -281,6 +284,7 @@ const BlockContent = ({
           />
           <input
             type="number"
+            inputMode="numeric"
             value={value.duration}
             onChange={(event) => handleInputChange(event, 'duration')}
             className={`${inputClassName} w-14`}
@@ -492,6 +496,7 @@ const BlockContent = ({
           <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>by</span>
           <input
             type="number"
+            inputMode="numeric"
             value={value?.amount ?? ''}
             onChange={(event) => handleInputChange(event, 'amount')}
             className={`${inputClassName} w-16`}
@@ -546,6 +551,7 @@ const BlockContent = ({
           <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>delete</span>
           <input
             type="number"
+            inputMode="numeric"
             value={value?.index ?? ''}
             onChange={(event) => handleInputChange(event, 'index')}
             className={`${inputClassName} mr-1 w-14`}
@@ -630,6 +636,7 @@ const BlockContent = ({
           <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>at</span>
           <input
             type="number"
+            inputMode="numeric"
             value={value?.index ?? ''}
             onChange={(event) => handleInputChange(event, 'index')}
             className={`${inputClassName} mr-1 w-14`}
@@ -672,6 +679,7 @@ const BlockContent = ({
           <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>replace item</span>
           <input
             type="number"
+            inputMode="numeric"
             value={value?.index ?? ''}
             onChange={(event) => handleInputChange(event, 'index')}
             className={`${inputClassName} mr-1 w-14`}
@@ -722,6 +730,7 @@ const BlockContent = ({
           <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>wait</span>
           <input
             type="number"
+            inputMode="numeric"
             min={0}
             value={value}
             onChange={handleInputChange}
@@ -736,6 +745,7 @@ const BlockContent = ({
           <span className="mr-1 whitespace-nowrap" style={{ fontSize: '0.75rem' }}>repeat</span>
           <input
             type="number"
+            inputMode="numeric"
             min={0}
             value={value?.times ?? ''}
             onChange={(event) => handleInputChange(event, 'times')}

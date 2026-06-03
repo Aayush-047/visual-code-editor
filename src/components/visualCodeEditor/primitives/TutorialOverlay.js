@@ -1,11 +1,11 @@
 import React from 'react';
-import { TUTORIAL_STEPS } from '../config';
 
 const TutorialOverlay = ({
   currentStep,
   currentStepIndex,
   spotlightRect,
   tooltipStyle,
+  tutorialSteps,
   onSkip,
   onNext,
   onPrev,
@@ -13,7 +13,7 @@ const TutorialOverlay = ({
 }) => {
   if (!currentStep || !spotlightRect) return null;
   const isFirst = currentStepIndex === 0;
-  const isLast = currentStepIndex === TUTORIAL_STEPS.length - 1;
+  const isLast = currentStepIndex === tutorialSteps.length - 1;
 
   return (
     <>
@@ -33,7 +33,7 @@ const TutorialOverlay = ({
         style={{ top: tooltipStyle.top, left: tooltipStyle.left }}
       >
         <div className="tt-step-dots">
-          {TUTORIAL_STEPS.map((step, index) => (
+          {tutorialSteps.map((step, index) => (
             <button
               key={step.id}
               type="button"
@@ -54,7 +54,7 @@ const TutorialOverlay = ({
             </button>
           </div>
         </div>
-        <div className="tt-counter">{currentStepIndex + 1} of {TUTORIAL_STEPS.length}</div>
+        <div className="tt-counter">{currentStepIndex + 1} of {tutorialSteps.length}</div>
       </div>
     </>
   );

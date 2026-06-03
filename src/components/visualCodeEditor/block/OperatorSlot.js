@@ -108,6 +108,7 @@ const OperatorSlot = ({
     <input
       ref={slotRef}
       type={inputType}
+      inputMode={inputType === 'number' ? 'numeric' : undefined}
       min={inputType === 'number' ? min : undefined}
       max={inputType === 'number' ? max : undefined}
       value={slotValue}

@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  TUTORIAL_STEPS,
   TUTORIAL_STORAGE_KEY,
+  getTutorialSteps,
   getTutorialTooltipStyle,
 } from '../config';
 
-const useTutorialManager = ({ activeSidebarTab, setActiveSidebarTab, showToast }) => {
+const useTutorialManager = ({ activeSidebarTab, isMobileLayout, setActiveSidebarTab, showToast }) => {
   const [isTutorialActive, setIsTutorialActive] = useState(false);
   const [tutorialStepIndex, setTutorialStepIndex] = useState(0);
   const [tutorialSpotlightRect, setTutorialSpotlightRect] = useState(null);
   const [tutorialTooltipStyle, setTutorialTooltipStyle] = useState({ top: 12, left: 12 });
   const tutorialStartTimeoutRef = useRef(null);
 
+  const tutorialSteps = useMemo(() => getTutorialSteps(isMobileLayout), [isMobileLayout]);
   const currentTutorialStep = useMemo(
-    () => TUTORIAL_STEPS[tutorialStepIndex] || null,
-    [tutorialStepIndex]
+    () => tutorialSteps[tutorialStepIndex] || null,
+    [tutorialStepIndex, tutorialSteps]
   );
 
   const stopTutorial = useCallback(() => {
@@ -48,7 +49,7 @@ const useTutorialManager = ({ activeSidebarTab, setActiveSidebarTab, showToast }
   const updateTutorialLayout = useCallback(
     (index) => {
       const fallbackToNext = (nextIndex) => {
-        if (nextIndex >= TUTORIAL_STEPS.length) {
+        if (nextIndex >= tutorialSteps.length) {
           completeTutorial();
           return;
         }
@@ -56,7 +57,7 @@ const useTutorialManager = ({ activeSidebarTab, setActiveSidebarTab, showToast }
         setTutorialStepIndex(nextIndex);
       };
 
-      const step = TUTORIAL_STEPS[index];
+      const step = tutorialSteps[index];
       const target = step ? document.querySelector(step.target) : null;
 
       if (!step || !target) {
@@ -69,20 +70,20 @@ const useTutorialManager = ({ activeSidebarTab, setActiveSidebarTab, showToast }
       window.requestAnimationFrame(() => {
         const rect = target.getBoundingClientRect();
         setTutorialSpotlightRect(rect);
-        setTutorialTooltipStyle(getTutorialTooltipStyle(step.position, rect));
+        setTutorialTooltipStyle(getTutorialTooltipStyle(step.position, rect, isMobileLayout));
       });
     },
-    [completeTutorial]
+    [completeTutorial, isMobileLayout, tutorialSteps]
   );
 
   const nextTutorialStep = useCallback(() => {
-    if (tutorialStepIndex < TUTORIAL_STEPS.length - 1) {
+    if (tutorialStepIndex < tutorialSteps.length - 1) {
       setTutorialStepIndex((currentIndex) => currentIndex + 1);
       return;
     }
 
     completeTutorial();
-  }, [completeTutorial, tutorialStepIndex]);
+  }, [completeTutorial, tutorialStepIndex, tutorialSteps.length]);
 
   const previousTutorialStep = useCallback(() => {
     setTutorialStepIndex((currentIndex) => Math.max(0, currentIndex - 1));
@@ -139,6 +140,7 @@ const useTutorialManager = ({ activeSidebarTab, setActiveSidebarTab, showToast }
     restartTutorial,
     skipTutorial,
     tutorialSpotlightRect,
+    tutorialSteps,
     tutorialStepIndex,
     tutorialTooltipStyle,
     setTutorialStepIndex,

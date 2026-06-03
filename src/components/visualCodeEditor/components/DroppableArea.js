@@ -20,7 +20,7 @@ const DroppableArea = ({ onDrop, onBackgroundClick, children, isEmpty = false, e
     <div
       ref={drop}
       onClick={onBackgroundClick}
-      className={`workspace-canvas theme-transition relative min-h-[calc(80vh-100px)] max-h-[calc(80vh-100px)] overflow-y-auto ${
+      className={`workspace-canvas theme-transition relative min-h-[420px] overflow-y-auto md:min-h-[calc(80vh-100px)] md:max-h-[calc(80vh-100px)] ${
         isOver ? 'bg-blue-50/10' : ''
       }`}
       style={isOver ? { borderColor: '#60a5fa' } : undefined}

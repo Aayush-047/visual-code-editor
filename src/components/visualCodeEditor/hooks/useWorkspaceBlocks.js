@@ -97,6 +97,20 @@ const useWorkspaceBlocks = ({
     [mutateSelectedSpriteBlocks, showToast]
   );
 
+  const setMobileQueueOrder = useCallback(
+    (nextBlockIds) => {
+      mutateSelectedSpriteBlocks((prevBlocks) => {
+        const nextBlocksById = new Map(prevBlocks.map((block) => [block.id, block]));
+        const orderedBlocks = nextBlockIds
+          .map((blockId) => nextBlocksById.get(blockId))
+          .filter(Boolean);
+
+        return orderedBlocks.length === prevBlocks.length ? orderedBlocks : prevBlocks;
+      });
+    },
+    [mutateSelectedSpriteBlocks]
+  );
+
   const moveBlock = useCallback(
     (fromIndex, toIndex) => {
       mutateSelectedSpriteBlocks((prevBlocks) => {
@@ -145,6 +159,46 @@ const useWorkspaceBlocks = ({
       handleRemoveBlock(id);
     },
     [handleRemoveBlock]
+  );
+
+  const toggleMobileQueueBlock = useCallback(
+    (item, preparedBlock = null) => {
+      if (!item?.id) {
+        return;
+      }
+
+      const existingBlock = blocks.find((block) => block.sourceSidebarId === item.id);
+
+      if (existingBlock) {
+        if (preparedBlock) {
+          const nextPreparedBlock = {
+            ...cloneBlocks([preparedBlock])[0],
+            id: existingBlock.id,
+            sourceSidebarId: item.id,
+          };
+
+          mutateSelectedSpriteBlocks((prevBlocks) =>
+            prevBlocks.map((block) => (block.id === existingBlock.id ? nextPreparedBlock : block))
+          );
+          showToast('Block updated.', 'info');
+          return;
+        }
+
+        handleRemoveBlock(existingBlock.id);
+        return;
+      }
+
+      const newBlock = preparedBlock
+        ? {
+            ...cloneBlocks([preparedBlock])[0],
+            sourceSidebarId: item.id,
+          }
+        : createWorkspaceBlock(item);
+      mutateSelectedSpriteBlocks((prevBlocks) => [...prevBlocks, newBlock]);
+      setSelectedReplayBlockId((currentId) => currentId || newBlock.id);
+      showToast('Block queued.', 'info');
+    },
+    [blocks, handleRemoveBlock, mutateSelectedSpriteBlocks, showToast]
   );
 
   const handleNestedDrop = useCallback(
@@ -283,9 +337,11 @@ const useWorkspaceBlocks = ({
     requestRemoveBlock,
     selectedBlockId,
     selectedReplayBlockId,
+    setMobileQueueOrder,
     setRemovingBlockIds,
     setSelectedBlockId,
     setSelectedReplayBlockId,
+    toggleMobileQueueBlock,
   };
 };
 

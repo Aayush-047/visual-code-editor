@@ -35,8 +35,8 @@ const BackdropLibraryModal = ({
         </button>
       </div>
       <div className="h-full overflow-y-auto px-6 py-6">
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="relative w-full md:max-w-md">
+        <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative w-full lg:max-w-md">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input ref={backdropLibrarySearchRef} type="text" value={backdropLibrarySearch} onChange={(event) => setBackdropLibrarySearch(event.target.value)} placeholder={`Search ${backdropLibrary.length}+ backdrops…`} className="asset-search h-11 w-full rounded-xl border pl-10 pr-4 text-sm shadow-sm" />
           </div>
@@ -53,7 +53,7 @@ const BackdropLibraryModal = ({
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
           <button type="button" onClick={openBackdropUploadPicker} className="library-card upload-card rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50 p-4 text-left transition hover:border-emerald-400 hover:bg-emerald-100" style={{ backgroundColor: 'rgba(16, 185, 129, 0.05)' }}>
             <div className="upload-placeholder mb-3 flex items-center justify-center rounded-xl bg-white/70 text-emerald-600">
               <span className="text-5xl font-light leading-none">+</span>
