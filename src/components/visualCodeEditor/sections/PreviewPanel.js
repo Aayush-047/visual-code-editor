@@ -89,6 +89,9 @@ const PreviewPanel = ({
                       className="block"
                     />
                   </span>
+                  <span className="tablet-preview-name truncate text-sm font-semibold text-orange-900">
+                    {selectedSprite.name}
+                  </span>
                   <ChevronDown size={14} className="text-[var(--text-muted)]" />
                 </button>
               ) : null}
@@ -101,6 +104,9 @@ const PreviewPanel = ({
                   title={selectedBackdrop.name}
                 >
                   <BackdropSwatch backdrop={selectedBackdrop} className="h-5 w-5 rounded-md border border-emerald-200" />
+                  <span className="tablet-preview-name truncate text-sm font-semibold text-emerald-900">
+                    {selectedBackdrop.name}
+                  </span>
                   <ChevronDown size={14} className="text-[var(--text-muted)]" />
                 </button>
               ) : null}
@@ -111,20 +117,22 @@ const PreviewPanel = ({
                   onClick={() => {
                     void handleShareProject?.();
                   }}
-                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-[var(--border-preview)] bg-white text-sky-600 shadow-sm"
+                  className="mobile-preview-action-btn flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-[var(--border-preview)] bg-white text-sky-600 shadow-sm"
                   aria-label="Share project"
                   title="Share"
                 >
                   <Link2 size={18} />
+                  <span className="tablet-action-label text-sm font-semibold">Share</span>
                 </button>
                 <button
                   type="button"
                   onClick={onOpenBlockPicker}
-                  className="mobile-preview-add-btn flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-[var(--border-preview)] bg-white text-blue-600 shadow-sm"
+                  className="mobile-preview-action-btn mobile-preview-add-btn flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-[var(--border-preview)] bg-white text-blue-600 shadow-sm"
                   aria-label="Open block picker"
                   title="Add block"
                 >
                   <Plus size={18} />
+                  <span className="tablet-action-label text-sm font-semibold">Add Blocks</span>
                 </button>
               </div>
             </div>

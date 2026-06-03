@@ -189,6 +189,29 @@ body {
   color: #ffffff;
 }
 
+.tablet-preview-name,
+.tablet-action-label {
+  display: none;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .tablet-preview-name,
+  .tablet-action-label {
+    display: inline-block;
+  }
+
+  .tablet-preview-name {
+    max-width: 120px;
+  }
+
+  .mobile-preview-action-btn {
+    width: auto !important;
+    gap: 6px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
 .preview-stop-current {
   background: var(--stop-current-bg);
 }

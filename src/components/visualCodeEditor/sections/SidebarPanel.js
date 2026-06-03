@@ -15,7 +15,6 @@ const MOBILE_BLOCK_CATEGORIES = [
   { id: CONTROLS, label: 'Control' },
   { id: OPERATORS, label: 'Operators' },
   { id: VARIABLES, label: 'Variables' },
-  { id: SPRITE, label: 'Sprite' },
 ];
 const BLOCK_HINT_KEY = 'vce_mobile_block_fab_hint_dismissed';
 const MOBILE_UNSUPPORTED_ACTIONS = new Set([
