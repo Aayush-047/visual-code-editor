@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronDown, Link2, Maximize2, Minimize2, Plus } from 'lucide-react';
+import { ChevronDown, FlipHorizontal2, FlipVertical2, Link2, Maximize2, Minimize2, Pencil, Plus, RotateCcw } from 'lucide-react';
 import Tooltip from '../components/Tooltip';
 import SpriteGraphic from '../components/SpriteGraphic';
 import { BackdropSwatch, MobileBottomSheet, PreviewControls, StagePreview } from '../primitives';
+import { loadSvgMarkup, normalizeSvgMarkup } from '../config';
+import { updateRootFlip } from '../utils/spriteMarkup';
 
 const PreviewPanel = ({
   isMobile = false,
@@ -21,6 +23,8 @@ const PreviewPanel = ({
   handleShareProject,
   openSpriteLibrary,
   openBackdropLibrary,
+  updateSpriteById,
+  showToast,
   onOpenBlockPicker,
   handleSpritePointerDown,
   handleSpritePointerMove,
@@ -37,6 +41,7 @@ const PreviewPanel = ({
   hasDismissedRunNudge,
 }) => {
   const [mobilePicker, setMobilePicker] = useState(null);
+  const [editingSpriteId, setEditingSpriteId] = useState('');
   const [mobileSpriteScale, setMobileSpriteScale] = useState(() => {
     if (typeof window === 'undefined') {
       return 0.5;
@@ -61,6 +66,47 @@ const PreviewPanel = ({
       window.removeEventListener('resize', updateMobileSpriteScale);
     };
   }, []);
+
+  useEffect(() => {
+    if (mobilePicker !== 'sprite') {
+      setEditingSpriteId('');
+    }
+  }, [mobilePicker]);
+
+  const handleFlipSprite = async (sprite, axis) => {
+    try {
+      const sourceMarkup = sprite.svgMarkup || await loadSvgMarkup(sprite.src);
+      const flippedMarkup = normalizeSvgMarkup(updateRootFlip(sourceMarkup, axis));
+
+      updateSpriteById?.(sprite.id, (currentSprite) => ({
+        ...currentSprite,
+        svgMarkup: flippedMarkup,
+      }));
+      showToast?.(`${sprite.name} flipped ${axis.toUpperCase()}.`);
+    } catch (error) {
+      showToast?.(error.message || 'Unable to flip this sprite.', 'error');
+    }
+  };
+
+  const handleResetSprite = (sprite) => {
+    updateSpriteById?.(sprite.id, (currentSprite) => ({
+      ...currentSprite,
+      svgMarkup: null,
+    }));
+    showToast?.(`${sprite.name} sprite reset.`);
+  };
+
+  const handleSpriteSizeChange = (sprite, nextSize) => {
+    const normalizedSize = Math.max(10, Math.min(300, Number(nextSize) || 100));
+
+    updateSpriteById?.(sprite.id, (currentSprite) => ({
+      ...currentSprite,
+      spriteState: {
+        ...currentSprite.spriteState,
+        size: normalizedSize,
+      },
+    }));
+  };
 
   return (
   <>
@@ -225,26 +271,100 @@ const PreviewPanel = ({
           </span>
           <span className="font-semibold">Add new from library</span>
         </button>
-        {sprites.map((sprite) => (
-          <button
-            key={sprite.id}
-            type="button"
-            onClick={() => {
-              setSelectedSpriteId(sprite.id);
-              setMobilePicker(null);
-            }}
-            className={`flex min-h-[52px] w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left ${
-              activeSpriteId === sprite.id
-                ? 'border-orange-400 bg-orange-50 text-orange-900'
-                : 'border-[var(--panel-border)] bg-[var(--surface-modal-soft)] text-[var(--text-primary)]'
-            }`}
-          >
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-white">
-              <SpriteGraphic src={sprite.src} markup={sprite.svgMarkup} color={sprite.color} width="20" height="20" className="block" />
+        {sprites.map((sprite) => {
+          const isEditing = editingSpriteId === sprite.id;
+          const spriteSize = sprite.spriteState?.size ?? 100;
+
+          return (
+            <div
+              key={sprite.id}
+              className={`rounded-2xl border ${
+                activeSpriteId === sprite.id
+                  ? 'border-orange-400 bg-orange-50 text-orange-900'
+                  : 'border-[var(--panel-border)] bg-[var(--surface-modal-soft)] text-[var(--text-primary)]'
+              }`}
+            >
+              <div className="flex min-h-[52px] w-full items-center gap-3 px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSpriteId(sprite.id);
+                    setMobilePicker(null);
+                  }}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                >
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-white">
+                    <SpriteGraphic src={sprite.src} markup={sprite.svgMarkup} color={sprite.color} width="20" height="20" className="block" />
+                  </div>
+                  <span className="truncate font-semibold">{sprite.name}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingSpriteId((currentId) => (currentId === sprite.id ? '' : sprite.id))}
+                  className="flex min-h-[36px] flex-shrink-0 items-center rounded-full border border-orange-200 bg-white px-3 text-sm font-semibold text-orange-700"
+                  aria-expanded={isEditing}
+                  aria-label={`Edit ${sprite.name}`}
+                >
+                  <Pencil size={15} />
+                </button>
+              </div>
+              {isEditing ? (
+                <div className="border-t border-[var(--panel-border)] px-4 pb-4 pt-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleFlipSprite(sprite, 'x')}
+                      className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl border border-[var(--panel-border)] bg-white px-2 text-sm font-semibold text-[var(--text-primary)]"
+                    >
+                      <FlipHorizontal2 size={14} />
+                      Flip X
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleFlipSprite(sprite, 'y')}
+                      className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl border border-[var(--panel-border)] bg-white px-2 text-sm font-semibold text-[var(--text-primary)]"
+                    >
+                      <FlipVertical2 size={14} />
+                      Flip Y
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleResetSprite(sprite)}
+                      className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl border border-[var(--panel-border)] bg-white px-2 text-sm font-semibold text-[var(--text-primary)]"
+                    >
+                      <RotateCcw size={14} />
+                      Reset
+                    </button>
+                  </div>
+                  <div className="mt-3 rounded-xl bg-white px-3 py-3">
+                    <div className="mb-2 flex items-center justify-between text-sm font-semibold text-gray-800">
+                      <span>Size</span>
+                      <span>{spriteSize}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="300"
+                      step="1"
+                      value={spriteSize}
+                      onChange={(event) => handleSpriteSizeChange(sprite, event.target.value)}
+                      className="w-full"
+                    />
+                    <input
+                      type="number"
+                      min="10"
+                      max="300"
+                      step="1"
+                      value={spriteSize}
+                      onChange={(event) => handleSpriteSizeChange(sprite, event.target.value)}
+                      className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800"
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
-            <span className="truncate font-semibold">{sprite.name}</span>
-          </button>
-        ))}
+          );
+        })}
       </div>
     </MobileBottomSheet>
     <MobileBottomSheet

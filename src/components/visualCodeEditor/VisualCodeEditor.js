@@ -451,6 +451,8 @@ const VisualCodeEditor = () => {
           availableBackdrops={availableBackdrops}
           backdropValue={backdropValue}
           handleSelectBackdrop={handleSelectBackdrop}
+          updateSpriteById={updateSpriteById}
+          showToast={showToast}
         />
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           {!isMobileLayout ? (
@@ -534,6 +536,8 @@ const VisualCodeEditor = () => {
                 handleShareProject={handleShareProject}
                 openSpriteLibrary={openSpriteLibrary}
                 openBackdropLibrary={openBackdropLibrary}
+                updateSpriteById={updateSpriteById}
+                showToast={showToast}
                 handleSpritePointerDown={handleSpritePointerDown}
                 handleSpritePointerMove={handleSpritePointerMove}
                 handleSpritePointerUp={handleSpritePointerUp}
@@ -568,6 +572,8 @@ const VisualCodeEditor = () => {
                 handleShareProject={handleShareProject}
                 openSpriteLibrary={openSpriteLibrary}
                 openBackdropLibrary={openBackdropLibrary}
+                updateSpriteById={updateSpriteById}
+                showToast={showToast}
                 onOpenBlockPicker={() => setMobileBlockPickerOpenRequest((value) => value + 1)}
                 handleSpritePointerDown={handleSpritePointerDown}
                 handleSpritePointerMove={handleSpritePointerMove}

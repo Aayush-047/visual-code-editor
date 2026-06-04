@@ -162,29 +162,13 @@ const useWorkspaceBlocks = ({
   );
 
   const toggleMobileQueueBlock = useCallback(
-    (item, preparedBlock = null) => {
-      if (!item?.id) {
+    (item, preparedBlock = null, options = {}) => {
+      if (options.removeBlockId) {
+        handleRemoveBlock(options.removeBlockId);
         return;
       }
 
-      const existingBlock = blocks.find((block) => block.sourceSidebarId === item.id);
-
-      if (existingBlock) {
-        if (preparedBlock) {
-          const nextPreparedBlock = {
-            ...cloneBlocks([preparedBlock])[0],
-            id: existingBlock.id,
-            sourceSidebarId: item.id,
-          };
-
-          mutateSelectedSpriteBlocks((prevBlocks) =>
-            prevBlocks.map((block) => (block.id === existingBlock.id ? nextPreparedBlock : block))
-          );
-          showToast('Block updated.', 'info');
-          return;
-        }
-
-        handleRemoveBlock(existingBlock.id);
+      if (!item?.id) {
         return;
       }
 
@@ -198,7 +182,7 @@ const useWorkspaceBlocks = ({
       setSelectedReplayBlockId((currentId) => currentId || newBlock.id);
       showToast('Block queued.', 'info');
     },
-    [blocks, handleRemoveBlock, mutateSelectedSpriteBlocks, showToast]
+    [handleRemoveBlock, mutateSelectedSpriteBlocks, showToast]
   );
 
   const handleNestedDrop = useCallback(

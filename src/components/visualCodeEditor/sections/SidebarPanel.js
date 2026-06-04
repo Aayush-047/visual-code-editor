@@ -132,7 +132,6 @@ const SidebarPanel = ({
       ),
     [mobileBlockCategory, sidebarBlocks]
   );
-  const mobileQueueIds = blocks.map((block) => block.sourceSidebarId).filter(Boolean);
 
   useEffect(() => {
     if (!isMobile || mobileOpenRequest === 0) {
@@ -196,7 +195,7 @@ const SidebarPanel = ({
                       </span>
                       <button
                         type="button"
-                        onClick={() => handleAddBlock({ id: block.sourceSidebarId })}
+                        onClick={() => handleAddBlock({ id: block.sourceSidebarId }, null, { removeBlockId: block.id })}
                         className="flex h-6 w-6 items-center justify-center rounded-full bg-transparent text-[var(--text-muted)]"
                         aria-label={`Remove ${describeBlock(block)}`}
                       >
@@ -236,9 +235,9 @@ const SidebarPanel = ({
               ) : null}
               <div className="max-h-[52vh] space-y-3 overflow-y-auto pr-1">
                 {mobileCategoryBlocks.map((block) => {
-                  const queuedBlock =
-                    blocks.find((workspaceBlock) => workspaceBlock.sourceSidebarId === block.id) || null;
-                  const isQueued = Boolean(queuedBlock);
+                  const queuedCount =
+                    blocks.filter((workspaceBlock) => workspaceBlock.sourceSidebarId === block.id).length;
+                  const isQueued = queuedCount > 0;
 
                   return (
                     <div
@@ -286,7 +285,7 @@ const SidebarPanel = ({
                               setMobileComposerState({
                                 isOpen: true,
                                 sourceBlock: block,
-                                initialBlock: queuedBlock,
+                                initialBlock: null,
                               });
                               return;
                             }
@@ -300,17 +299,15 @@ const SidebarPanel = ({
                           }`}
                           aria-label={
                             requiresMobileComposer(block)
-                              ? `${isQueued ? 'Edit' : 'Build'} ${describeBlock(block)}`
-                              : isQueued
-                                ? `Remove ${describeBlock(block)} from sequence`
-                                : `Add ${describeBlock(block)} to sequence`
+                              ? `Build and add ${describeBlock(block)} to sequence`
+                              : `Add ${describeBlock(block)} to sequence`
                           }
                         >
                           {requiresMobileComposer(block) && !isQueued ? (
                             <Settings2 size={16} />
                           ) : isQueued ? (
                             <span className="text-xs font-bold">
-                              {mobileQueueIds.indexOf(block.id) + 1}
+                              {queuedCount}
                             </span>
                           ) : (
                             <span className="text-lg leading-none">+</span>
