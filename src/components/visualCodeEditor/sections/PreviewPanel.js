@@ -208,6 +208,19 @@ const PreviewPanel = ({
           panelHeight={isMobile ? '100%' : undefined}
           className={`preview-surface relative overflow-x-auto overflow-y-auto rounded-xl border border-slate-200 p-4 ${isMobile ? 'mobile-stage-strip flex-1 min-h-0' : ''}`}
         />
+        {!isMobile ? (
+          <PreviewControls
+            isRunning={isRunning}
+            replayableBlocks={replayableBlocks}
+            selectedReplayBlockId={selectedReplayBlockId}
+            setSelectedReplayBlockId={setSelectedReplayBlockId}
+            runCode={runCode}
+            replaySelectedBlock={replaySelectedBlock}
+            stopCurrentSprite={stopCurrentSprite}
+            stopAllCode={stopAllCode}
+            shouldPulseRun={!hasDismissedRunNudge}
+          />
+        ) : null}
       </div>
     )}
     {isPreviewExpanded && (
